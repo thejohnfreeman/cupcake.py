@@ -9,6 +9,9 @@ readme = "README.rst"
 license = "ISC"
 packages = [{ include = "cupcake" }]
 
+[tool.poetry.scripts]
+cupcake = 'cupcake.main:main'
+
 [tool.poetry.dependencies]
 python = "^3.6-dev"
 sphinx = {version = "^1.8",optional = true}
