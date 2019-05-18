@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "cupcake"
 version = "0.1.0"
-description = ""
+description = "Make C++ a piece of cake."
 authors = ["John Freeman <jfreeman08@gmail.com>"]
 documentation = "https://cupcake.readthedocs.io/"
 repository = "https://github.com/thejohnfreeman/cupcake/"
