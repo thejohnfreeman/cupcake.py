@@ -22,28 +22,29 @@ Make C++ a piece of cake.
    :target: https://pypi.org/project/cupcake/
    :alt: Python versions supported
 
-Cupcake is a thin layer over [CMake][] and [Conan][] that tries to offer
-a better user experience in the style of [Yarn][] or [Poetry][].
+Cupcake is a thin layer over CMake_ and Conan_ that tries to offer
+a better user experience in the style of Yarn_ or Poetry_.
 
-[CMake]: https://cmake.org/cmake/help/latest/manual/cmake.1.html
-[Conan]: https://docs.conan.io/
-[Yarn]: https://yarnpkg.com/en/
-[Poetry]: https://poetry.eustace.io/
+.. _CMake: https://cmake.org/cmake/help/latest/manual/cmake.1.html
+.. _Conan: https://docs.conan.io/
+.. _Yarn: https://yarnpkg.com/en/
+.. _Poetry: https://poetry.eustace.io/
 
 
 Etymology
 ---------
 
-I love [Make][], but it's just not cross-platform. Just about every other
+I love Make_, but it's just not cross-platform. Just about every other
 single letter prefix of "-ake" is taken, including the obvious candidate for
-C++ (but stolen by C#), [Cake][]. From there, it's a small step to Cppcake,
+C++ (but stolen by C#), Cake_. From there, it's a small step to Cppcake,
 which needs an easy pronunciation. "Cupcake" works. I prefer names to be
 spelled with an unambiguous pronunciation so that readers are not left
-confused, so I might as well name the tool Cupcake. A brief [Google
-search](https://www.google.com/search?q=c%2B%2B+cupcake) appears to confirm
+confused, so I might as well name the tool Cupcake. A brief `Google
+search`__ appears to confirm
 the name is unclaimed in the C++ community.
 
-[Make]: https://www.gnu.org/software/make/
-[Cake]: https://cakebuild.net/
+.. _Make: https://www.gnu.org/software/make/
+.. _Cake: https://cakebuild.net/
+.. __: https://www.google.com/search?q=c%2B%2B+cupcake
 
 .. end-include
