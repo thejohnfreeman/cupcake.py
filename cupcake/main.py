@@ -2,6 +2,7 @@
 
 import click
 from cupcake import cmake
+import subprocess as sh
 
 
 @click.group()
@@ -11,5 +12,13 @@ def main():
 
 @main.command()
 def package():
-    build_system = cmake.CMake()
-    print(f'version = {build_system.version()}')
+    """Package the project"""
+    package = cmake.CMake()
+    sh.run(
+        [
+            'conan', 'create', '.',
+            f'{package.name}/{package.version}@demo/testing'
+        ],
+        check=True,
+    )
+    # TODO: Test package.
