@@ -32,16 +32,27 @@ a better user experience in the style of Yarn_ or Poetry_.
 
 
 Audience
---------
+========
 
 To use this tool, your C++ project must fit a certain profile and follow some
 conventions. The profile is what I call a **basic C++ project**:
 
 - A **name** that is a valid C++ identifier.
+- Zero or more **public dependencies**. These may be runtime dependencies of
+  the library or executables, or they may be build time dependencies of the
+  public headers. Users must install the public dependencies when they install
+  the project.
 - Some **public headers** nested under a directory named after the project.
 - One **library**, named after the project, that can be linked statically or
-  dynamically (with no other options).
-- Zero or more **executables** that depend on the library.
+  dynamically (with no other options). The library depends on the public
+  headers and the public dependencies.
+- Zero or more **executables** that depend on the public headers, the library,
+  and the public dependencies.
+- Zero or more **private dependencies**. These are often test frameworks.
+  Developers working on the library expect them to be installed, but users of
+  the library do not.
+- Zero or more **tests** that depend on the public headers, the library, the
+  public dependencies, and the private dependencies.
 
 The conventions are popular in the community and seem to be considered__
 best__ practices__:
@@ -64,8 +75,44 @@ best__ practices__:
 .. __: https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#package-configuration-file
 
 
+Commands
+========
+
+``package``
+-----------
+
+This abstracts the ``conan create`` `↗️`__ command. It:
+
+.. __: https://docs.conan.io/en/latest/reference/commands/creator/create.html
+
+- Copies a Conan recipe for your project to your local Conan cache, a la
+  ``conan export`` `↗️`__.
+
+   .. __: https://docs.conan.io/en/latest/reference/commands/creator/export.html
+
+- Builds the recipe for your current settings (CPU architecture, operating
+  system, compiler) and the ``Release`` build type, a la ``conan install``
+  `↗️`__.
+
+   .. __: https://docs.conan.io/en/latest/reference/commands/consumer/install.html
+
+- Configures and builds an example that depends on your project as a test of
+  its packaging, a la ``conan
+  test`` `↗️`__. That example must reside in the ``example/`` directory of your
+  project with a ``CMakeLists.txt`` that looks like this:
+
+   .. __: https://docs.conan.io/en/latest/reference/commands/creator/test.html
+
+   .. code-block:: cmake
+
+      add_executable(example example.cpp)
+      target_link_libraries(example ${PROJECT_NAME}::${PROJECT_NAME})
+
+  .. TODO: example.cpp in place of example/ directory.
+
+
 Etymology
----------
+=========
 
 I love Make_, but it's just not cross-platform. Just about every other
 single letter prefix of "-ake" is taken, including the obvious candidate for
