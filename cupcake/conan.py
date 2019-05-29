@@ -4,18 +4,14 @@ import os
 from pathlib import Path
 
 from cupcake.cmake import CMake
-from dataclasses import dataclass
 
 
 # TODO: Decorate/inherit CMake.
 class Conan(CMake):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
     @classmethod
-    def construct(cls, **kwargs):
-        source_dir = Path(kwargs.get('source_dir', '.'))
+    def construct(cls, *, source_dir='.', **kwargs):  # pylint: disable=arguments-differ
+        source_dir = Path(source_dir)
         if (
             not (source_dir / 'conanfile.txt').is_file() and
             not (source_dir / 'conanfile.py').is_file()
@@ -23,7 +19,7 @@ class Conan(CMake):
             return CMake.construct(**kwargs)
         return super(Conan, cls).construct(**kwargs)
 
-    def configure(self):
+    def configure(self, *args):
         """Install dependencies and configure with CMake."""
         os.makedirs(self.build_dir, exist_ok=True)
 
@@ -35,7 +31,9 @@ class Conan(CMake):
             cwd=self.build_dir,
         )
         cmake_toolchain_file = self.build_dir / 'conan_paths.cmake'
-        super().configure(f'-DCMAKE_TOOLCHAIN_FILE={cmake_toolchain_file}')
+        super().configure(
+            *args, f'-DCMAKE_TOOLCHAIN_FILE={cmake_toolchain_file}'
+        )
 
     def package(self):
         self.shell.run(

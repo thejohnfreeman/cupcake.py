@@ -5,6 +5,7 @@
 # mind as you design this abstraction. Only add methods that other parts of
 # Cupcake need.
 
+from dataclasses import dataclass
 import os
 import multiprocessing
 from pathlib import Path
@@ -14,9 +15,9 @@ import typing as t
 
 from cached_property import cached_property  # type: ignore
 import cmakelists_parsing.parsing as cmp  # type: ignore
-from cupcake.shell import Shell
-from dataclasses import dataclass
 from semantic_version import Version  # type: ignore
+
+from cupcake.shell import Shell
 
 # It would be easier for us to keep package metadata in a more readable file,
 # but that would require users to move their metadata to that file (from
@@ -45,8 +46,9 @@ class CMake:
     # TODO: Set options from command-line arguments, environment, and
     # configuration file.
     @classmethod
-    def construct(
+    def construct( # pylint: disable=too-many-arguments
         cls,
+            *,
         source_dir: _PathLike = os.getcwd(),
         build_dir: _PathLike = '.build',
         install_dir: _PathLike = '.install',

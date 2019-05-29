@@ -1,7 +1,5 @@
 """The command-line application."""
 
-import subprocess as sh
-
 import click
 from cupcake import conan
 
