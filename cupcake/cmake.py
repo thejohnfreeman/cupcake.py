@@ -12,11 +12,11 @@ import platform
 import shutil
 import typing as t
 
-from cached_property import cached_property
-import cmakelists_parsing.parsing as cmp
+from cached_property import cached_property  # type: ignore
+import cmakelists_parsing.parsing as cmp  # type: ignore
 from cupcake.shell import Shell
 from dataclasses import dataclass
-from semantic_version import Version
+from semantic_version import Version  # type: ignore
 
 # It would be easier for us to keep package metadata in a more readable file,
 # but that would require users to move their metadata to that file (from
@@ -39,7 +39,7 @@ class CMake:
     build_dir: Path
     install_dir: Path
     config: str
-    generator: str
+    generator: t.Optional[str]
     shell: Shell = Shell()
 
     # TODO: Set options from command-line arguments, environment, and

@@ -12,7 +12,11 @@ def main():
 
 
 # A mapping from lowercase names to CMake names.
-_CONFIG_CHOICES = click.Choice(('debug', 'release'), case_sensitive=False)
+# TODO: When mypy updates after 0.701, we should be able to remove this `type:
+# ignore`.
+_CONFIG_CHOICES = click.Choice(  # type: ignore
+    ('debug', 'release'), case_sensitive=False
+)
 _DEFAULT_CONFIG = 'debug'
 
 
