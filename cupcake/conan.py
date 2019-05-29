@@ -1,6 +1,7 @@
 """Conan as a package manager for CMake."""
 
 import os
+from pathlib import Path
 
 from cupcake.cmake import CMake
 from dataclasses import dataclass
@@ -11,6 +12,16 @@ class Conan(CMake):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    @classmethod
+    def construct(cls, **kwargs):
+        source_dir = Path(kwargs.get('source_dir', '.'))
+        if (
+            not (source_dir / 'conanfile.txt').is_file() and
+            not (source_dir / 'conanfile.py').is_file()
+        ):
+            return CMake.construct(**kwargs)
+        return super(Conan, cls).construct(**kwargs)
 
     def configure(self):
         """Install dependencies and configure with CMake."""

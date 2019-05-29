@@ -89,7 +89,8 @@ class CMake:
         os.makedirs(self.build_dir, exist_ok=True)
 
         # `FutureInstallDirs` expects the installation directory to exist.
-        os.makedirs(self.install_dir, exist_ok=True)
+        sub_install_dir = 'lib/cmake' if platform.system() == 'Linux' else ''
+        os.makedirs(self.install_dir / sub_install_dir, exist_ok=True)
 
         # yapf output is critically wrong when a comma appears in an expression in
         # an f-string.
