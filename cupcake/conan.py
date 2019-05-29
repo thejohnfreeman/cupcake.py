@@ -6,8 +6,9 @@ from pathlib import Path
 from cupcake.cmake import CMake
 
 
-# TODO: Decorate/inherit CMake.
 class Conan(CMake):
+    # Conan needs to wrap CMake because it knows how to satisfy CMake's
+    # assumptions.
 
     @classmethod
     def construct(cls, *, source_dir='.', **kwargs):  # pylint: disable=arguments-differ
@@ -23,9 +24,6 @@ class Conan(CMake):
         """Install dependencies and configure with CMake."""
         os.makedirs(self.build_dir, exist_ok=True)
 
-        # TODO: Compose CMake and Conan into a larger ProjectManager.
-        # Conan needs to wrap CMake because it knows how to satisfy CMake's
-        # assumptions.
         self.shell.run(
             ['conan', 'install', self.source_dir],
             cwd=self.build_dir,
