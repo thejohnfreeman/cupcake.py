@@ -6,6 +6,7 @@
 # Cupcake need.
 
 from dataclasses import dataclass
+from enum import Enum
 import os
 import multiprocessing
 from pathlib import Path
@@ -25,34 +26,61 @@ from cupcake.shell import Shell
 # not have parsing utilities as capable or convenient as those in Python. We
 # will bear the burden of parsing `CMakeLists.txt` for the user's convenience.
 
-_CONFIG_NAMES = {
-    'debug': 'Debug',
-    'release': 'Release',
-}
+
+class GeneratorConfiguration(Enum):
+    """A generator configuration (aka build type)."""
+    DEBUG = 'Debug'
+    RELEASE = 'Release'
+    MIN_SIZE_REL = 'MinSizeRel'
+    REL_WITH_DEB_INFO = 'RelWithDebInfo'
+
+    _lookup_table = {
+        'debug': DEBUG,
+        'release': RELEASE,
+        'minsizerel': MIN_SIZE_REL,
+        'relwithdebinfo': REL_WITH_DEB_INFO,
+    }
+
+    @staticmethod
+    def lookup(name):
+        return GeneratorConfiguration._lookup_table[name.lower()]
+
 
 _PathLike = t.Union[str, Path]
+
+
+def _config_sub_dir(config: GeneratorConfiguration):
+    # If we have a multi-configuration generator, we can put all of them in
+    # one build directory / solution, and users expect that.
+    # If we have a single-configuration generator, we want to manage multiple
+    # configuration directories on behalf of the user.
+    # This branch affects our build and install directories.
+    return config if platform.system() == 'Linux' else ''
 
 
 @dataclass
 class CMake:
 
     source_dir: Path
-    build_dir: Path
-    install_dir: Path
-    config: str
+    build_dir_prefix: Path
+    install_dir_prefix: Path
     generator: t.Optional[str]
     shell: Shell = Shell()
+
+    def build_dir(self, config) -> Path:
+        return self.build_dir_prefix / _config_sub_dir(config)
+
+    def install_dir(self, config) -> Path:
+        return self.install_dir_prefix / _config_sub_dir(config)
 
     # TODO: Set options from command-line arguments, environment, and
     # configuration file.
     @classmethod
     def construct( # pylint: disable=too-many-arguments
-        cls,
-            *,
+        cls, *,
         source_dir: _PathLike = os.getcwd(),
-        build_dir: _PathLike = '.build',
-        install_dir: _PathLike = '.install',
-        config: str = 'Debug',
+        build_dir_prefix: _PathLike = '.build',
+        install_dir_prefix: _PathLike = '.install',
         generator: str = None,
     ):
         # Use whatever default generator CMake chooses, unless it is Linux, in
@@ -61,46 +89,36 @@ class CMake:
             if platform.system() == 'Linux':
                 generator = 'Ninja'
 
-        config = _CONFIG_NAMES[config.lower()]
-
-        # If we have a multi-configuration generator, we can put all of them in
-        # one build directory / solution, and users expect that.
-        # If we have a single-configuration generator, we want to manage multiple
-        # configuration directories on behalf of the user.
-        # This branch affects our build directory.
-        sub_build_dir = config if platform.system() == 'Linux' else ''
-
-        build_dir = Path(build_dir).resolve() / sub_build_dir
-        install_dir = Path(install_dir).resolve() / sub_build_dir
-
         return cls(
             source_dir=Path(source_dir),
-            build_dir=build_dir,
-            install_dir=install_dir,
-            config=config,
+            build_dir_prefix=Path(build_dir_prefix),
+            install_dir_prefix=Path(install_dir_prefix),
             generator=generator,
         )
 
     def clean(self):
         """Remove the build and install directories."""
-        shutil.rmtree(self.build_dir, ignore_errors=True)
-        shutil.rmtree(self.install_dir, ignore_errors=True)
+        shutil.rmtree(self.build_dir_prefix, ignore_errors=True)
+        shutil.rmtree(self.install_dir_prefix, ignore_errors=True)
 
-    def configure(self, *args):
+    def configure(self, config, *args):
         """Configure the build directory."""
-        os.makedirs(self.build_dir, exist_ok=True)
+        build_dir = self.build_dir(config)
+        install_dir = self.install_dir(config)
 
+        os.makedirs(build_dir, exist_ok=True)
         # `FutureInstallDirs` expects the installation directory to exist.
-        sub_install_dir = 'lib/cmake' if platform.system() == 'Linux' else ''
-        os.makedirs(self.install_dir / sub_install_dir, exist_ok=True)
+        os.makedirs(install_dir, exist_ok=True)
 
         # yapf output is critically wrong when a comma appears in an expression in
         # an f-string.
-        cmake_configuration_types = ','.join(_CONFIG_NAMES.values())
+        cmake_configuration_types = ','.join(
+            c.name for c in GeneratorConfiguration
+        )
         # TODO: Invoke CMake to determine the default generator? Look up in
         # a known list to judge if it is single- or multi- configuration?
         config_arg = (
-            f'-DCMAKE_BUILD_TYPE={self.config}'
+            f'-DCMAKE_BUILD_TYPE={config}'
             if platform.system() in ('Linux', 'Darwin') else
             f'-DCMAKE_CONFIGURATION_TYPES={cmake_configuration_types}'
         )
@@ -113,49 +131,49 @@ class CMake:
                 # We get a warning if we pass `CMAKE_CONFIGURATION_TYPES` to
                 # a single-configuration generator.
                 config_arg,
-                f'-DCMAKE_INSTALL_PREFIX={self.install_dir}',
+                f'-DCMAKE_INSTALL_PREFIX={install_dir}',
                 *args,
                 self.source_dir,
             ],
-            cwd=self.build_dir,
+            cwd=build_dir,
         )
 
-    def build(self):
+    def build(self, config):
         """Build the project."""
-        self.configure()
+        self.configure(config)
         self.shell.run(
             [
                 'cmake',
                 '--build',
                 '.',
                 '--config',
-                self.config,
+                config,
                 '--parallel',
                 multiprocessing.cpu_count(),
             ],
-            cwd=self.build_dir,
+            cwd=self.build_dir(config),
         )
 
-    def test(self):
+    def test(self, config):
         """Test the project."""
-        self.configure()
+        self.configure(config)
         self.shell.run(
             [
                 'ctest',
                 '--build-config',
-                self.config,
+                config,
                 '--parallel',
                 multiprocessing.cpu_count(),
             ],
-            cwd=self.build_dir,
+            cwd=self.build_dir(config),
         )
 
-    def install(self):
+    def install(self, config):
         """Install the project."""
-        self.configure()
+        self.configure(config)
         self.shell.run(
             ['cmake', '--build', '.', '--target', 'install'],
-            cwd=self.build_dir,
+            cwd=self.build_dir(config),
         )
 
     # TODO: Separate the build system abstraction from the package metadata

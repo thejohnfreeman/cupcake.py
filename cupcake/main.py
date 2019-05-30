@@ -51,8 +51,8 @@ def clean():
 @echoes()
 def configure(config):
     """Configure the build directory."""
-    project = conan.Conan.construct(config=config)
-    project.configure()
+    project = conan.Conan.construct()
+    project.configure(config)
 
 
 @main.command()
@@ -60,8 +60,8 @@ def configure(config):
 @echoes()
 def build(config):
     """Build the project."""
-    project = conan.Conan.construct(config=config)
-    project.build()
+    project = conan.Conan.construct()
+    project.build(config)
 
 
 @main.command()
@@ -69,8 +69,8 @@ def build(config):
 @echoes()
 def test(config):
     """Test the project."""
-    project = conan.Conan.construct(config=config)
-    project.test()
+    project = conan.Conan.construct()
+    project.test(config)
 
 
 @main.command()
@@ -78,8 +78,8 @@ def test(config):
 @echoes()
 def install(config):
     """Install the project."""
-    project = conan.Conan.construct(config=config)
-    project.install()
+    project = conan.Conan.construct()
+    project.install(config)
 
 
 @main.command()
