@@ -2,8 +2,19 @@
 
 import os
 from pathlib import Path
+import typing as t
 
 from cupcake.cmake import CMake
+
+
+def conanfile(source_dir: Path) -> t.Optional[Path]:
+    path = source_dir / 'conanfile.py'
+    if path.is_file():
+        return path
+    path = source_dir / 'conanfile.txt'
+    if path.is_file():
+        return path
+    return None
 
 
 class Conan(CMake):
@@ -13,10 +24,7 @@ class Conan(CMake):
     @classmethod
     def construct(cls, *, source_dir='.', **kwargs):  # pylint: disable=arguments-differ
         source_dir = Path(source_dir)
-        if (
-            not (source_dir / 'conanfile.txt').is_file() and
-            not (source_dir / 'conanfile.py').is_file()
-        ):
+        if conanfile(source_dir) is None:
             return CMake.construct(**kwargs)
         return super(Conan, cls).construct(**kwargs)
 
@@ -24,14 +32,22 @@ class Conan(CMake):
         """Install dependencies and configure with CMake."""
         os.makedirs(self.build_dir, exist_ok=True)
 
-        self.shell.run(
-            ['conan', 'install', self.source_dir],
-            cwd=self.build_dir,
-        )
+        # conaninfo.txt is modified on every install.
+        ci = self.build_dir / 'conaninfo.txt'
+        cf = conanfile(self.source_dir)
+        if cf.is_file(
+        ) and (not ci.is_file() or cf.stat().st_mtime > ci.stat().st_mtime):
+            self.shell.run(
+                ['conan', 'install', self.source_dir],
+                cwd=self.build_dir,
+            )
+
         cmake_toolchain_file = self.build_dir / 'conan_paths.cmake'
-        super().configure(
-            *args, f'-DCMAKE_TOOLCHAIN_FILE={cmake_toolchain_file}'
+        cmake_args = (
+            [f'-DCMAKE_TOOLCHAIN_FILE={cmake_toolchain_file}']
+            if cmake_toolchain_file.is_file() else []
         )
+        super().configure(*args, *cmake_args)
 
     def package(self):
         self.shell.run(
