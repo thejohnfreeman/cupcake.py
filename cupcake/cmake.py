@@ -139,6 +139,8 @@ class CMake:
                 # We get a warning if we pass `CMAKE_CONFIGURATION_TYPES` to
                 # a single-configuration generator.
                 config_arg,
+                # `CMAKE_EXPORT_COMPILE_COMMANDS` should be on by default.
+                '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
                 # `CMAKE_INSTALL_PREFIX` is relative to the build directory.
                 f'-DCMAKE_INSTALL_PREFIX={install_dir.resolve()}',
                 *args,
