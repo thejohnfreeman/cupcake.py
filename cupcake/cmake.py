@@ -18,6 +18,7 @@ from cached_property import cached_property  # type: ignore
 import cmakelists_parsing.parsing as cmp  # type: ignore
 from semantic_version import Version  # type: ignore
 
+from cupcake.filesystem import is_modified_before
 from cupcake.shell import Shell
 
 # It would be easier for us to keep package metadata in a more readable file,
@@ -106,9 +107,16 @@ class CMake:
         build_dir = self.build_dir(config)
         install_dir = self.install_dir(config)
 
+        if (build_dir / 'CMakeCache.txt').is_file():
+            # Depend on CMake to reconfigure itself.
+            # TODO: Will it? Fill the gaps.
+            return
+
         os.makedirs(build_dir, exist_ok=True)
         # `FutureInstallDirs` expects the installation directory to exist.
         os.makedirs(install_dir, exist_ok=True)
+        if platform.system() == 'Linux':
+            os.makedirs(install_dir / 'lib/cmake', exist_ok=True)
 
         # yapf output is critically wrong when a comma appears in an expression in
         # an f-string.
@@ -131,7 +139,8 @@ class CMake:
                 # We get a warning if we pass `CMAKE_CONFIGURATION_TYPES` to
                 # a single-configuration generator.
                 config_arg,
-                f'-DCMAKE_INSTALL_PREFIX={install_dir}',
+                # `CMAKE_INSTALL_PREFIX` is relative to the build directory.
+                f'-DCMAKE_INSTALL_PREFIX={install_dir.resolve()}',
                 *args,
                 self.source_dir,
             ],
