@@ -1,6 +1,10 @@
 """The command-line application."""
 
+import functools
+import subprocess
+
 import click
+
 from cupcake import conan
 
 
@@ -18,6 +22,23 @@ _CONFIG_CHOICES = click.Choice(  # type: ignore
 _DEFAULT_CONFIG = 'debug'
 
 
+def echoes():
+    """Hide the stack trace of a ``CalledProcessError``."""
+
+    def decorator(f):
+
+        @functools.wraps(f)
+        def wrapped(*args, **kwargs):
+            try:
+                f(*args, **kwargs)
+            except subprocess.CalledProcessError as cause:
+                raise SystemExit(cause.returncode)
+
+        return wrapped
+
+    return decorator
+
+
 @main.command()
 def clean():
     """Remove the build and install directories."""
@@ -27,6 +48,7 @@ def clean():
 
 @main.command()
 @click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
+@echoes()
 def configure(config):
     """Configure the build directory."""
     project = conan.Conan.construct(config=config)
@@ -35,6 +57,7 @@ def configure(config):
 
 @main.command()
 @click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
+@echoes()
 def build(config):
     """Build the project."""
     project = conan.Conan.construct(config=config)
@@ -43,6 +66,7 @@ def build(config):
 
 @main.command()
 @click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
+@echoes()
 def test(config):
     """Test the project."""
     project = conan.Conan.construct(config=config)
@@ -51,6 +75,7 @@ def test(config):
 
 @main.command()
 @click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
+@echoes()
 def install(config):
     """Install the project."""
     project = conan.Conan.construct(config=config)
@@ -58,6 +83,7 @@ def install(config):
 
 
 @main.command()
+@echoes()
 def package():
     """Package the project."""
     project = conan.Conan.construct()
