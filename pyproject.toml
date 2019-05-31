@@ -23,6 +23,7 @@ cmakelists_parsing = "^0.3.1"
 cached-property = "^1.5"
 dataclasses = "^0.6.0"
 conan = "^1.15"
+toolz = "^0.9.0"
 
 [tool.poetry.extras]
 docs = ["sphinx", "sphinx_rtd_theme", "toml"]

@@ -4,6 +4,7 @@ import functools
 import subprocess
 
 import click
+from toolz.functoolz import compose
 
 from cupcake import conan
 
@@ -17,12 +18,12 @@ def main():
 # TODO: When mypy updates after 0.701, we should be able to remove this `type:
 # ignore`.
 _CONFIG_CHOICES = click.Choice(  # type: ignore
-    ('debug', 'release'), case_sensitive=False
+    ('debug', 'release', 'minsizerel', 'relwithdebinfo'), case_sensitive=False
 )
 _DEFAULT_CONFIG = 'debug'
 
 
-def hide_stack_trace():
+def _hide_stack_trace():
     """Hide the stack trace of a ``CalledProcessError``."""
 
     def decorator(f):
@@ -39,6 +40,17 @@ def hide_stack_trace():
     return decorator
 
 
+_config_option = compose( # pylint: disable=invalid-name
+    # These must be composed in this order,
+    # because `flag_value` sets the default to `False`.
+    click.option('--debug', 'config', flag_value='debug'),
+    click.option('--release', 'config', flag_value='release'),
+    click.option(
+        '-c', '--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG
+    ),
+)
+
+
 @main.command()
 def clean():
     """Remove the build and install directories."""
@@ -47,8 +59,8 @@ def clean():
 
 
 @main.command()
-@click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
-@hide_stack_trace()
+@_config_option
+@_hide_stack_trace()
 def configure(config):
     """Configure the build directory."""
     project = conan.Conan.construct()
@@ -56,8 +68,8 @@ def configure(config):
 
 
 @main.command()
-@click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
-@hide_stack_trace()
+@_config_option
+@_hide_stack_trace()
 def build(config):
     """Build the project."""
     project = conan.Conan.construct()
@@ -65,8 +77,8 @@ def build(config):
 
 
 @main.command()
-@click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
-@hide_stack_trace()
+@_config_option
+@_hide_stack_trace()
 def test(config):
     """Test the project."""
     project = conan.Conan.construct()
@@ -74,8 +86,8 @@ def test(config):
 
 
 @main.command()
-@click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
-@hide_stack_trace()
+@_config_option
+@_hide_stack_trace()
 def install(config):
     """Install the project."""
     project = conan.Conan.construct()
@@ -83,7 +95,7 @@ def install(config):
 
 
 @main.command()
-@hide_stack_trace()
+@_hide_stack_trace()
 def package():
     """Package the project."""
     project = conan.Conan.construct()
