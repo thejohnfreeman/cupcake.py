@@ -29,7 +29,7 @@ class Conan(CMake):
             return CMake.construct(**kwargs)
         return super(Conan, cls).construct(**kwargs)
 
-    def configure(self, config, *args):
+    def configure(self, config, *cmake_args):
         """Install dependencies and configure with CMake."""
         build_dir = self.build_dir(config)
         os.makedirs(build_dir, exist_ok=True)
@@ -44,11 +44,11 @@ class Conan(CMake):
             )
 
         cmake_toolchain_file = build_dir / 'conan_paths.cmake'
-        cmake_args = (
+        cmake_args_conan = (
             [f'-DCMAKE_TOOLCHAIN_FILE={cmake_toolchain_file}']
             if cmake_toolchain_file.is_file() else []
         )
-        super().configure(config, *args, *cmake_args)
+        super().configure(config, *cmake_args_conan, *cmake_args)
 
     def package(self):
         self.shell.run(

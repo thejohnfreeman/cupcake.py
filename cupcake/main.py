@@ -100,15 +100,33 @@ def clean(build_dir_prefix, install_dir_prefix):
     '-g', '--generator', 'generator', default=cmake.CMake.DEFAULT_GENERATOR
 )
 @_config_option
+@click.option(
+    '-D',
+    'definitions',
+    multiple=True,
+    help='CMake variable definitions.',
+)
+@click.argument('cmake_args', nargs=-1)  # pylint: disable=too-many-arguments
 @_hide_stack_trace()
-def configure(build_dir_prefix, install_dir_prefix, generator, config):
+def configure(
+    build_dir_prefix,
+    install_dir_prefix,
+    generator,
+    config,
+    definitions,
+    cmake_args,
+):
     """Configure the build directory."""
     project = conan.Conan.construct(
         build_dir_prefix=build_dir_prefix,
         install_dir_prefix=install_dir_prefix,
         generator=generator,
     )
-    project.configure(config)
+    if any(d.startswith('CMAKE_INSTALL_PREFIX') for d in definitions):
+        raise click.BadParameter(
+            'Please use --prefix instead of -DCMAKE_INSTALL_PREFIX.'
+        )
+    project.configure(config, *(f'-D{d}' for d in definitions), *cmake_args)
 
 
 @main.command()
