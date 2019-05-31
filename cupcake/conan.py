@@ -5,7 +5,7 @@ from pathlib import Path
 import typing as t
 
 from cupcake.cmake import CMake
-from cupcake.filesystem import is_modified_before
+from cupcake.filesystem import is_modified_after
 
 
 def conanfile(source_dir: Path) -> t.Optional[Path]:
@@ -37,7 +37,7 @@ class Conan(CMake):
         # conaninfo.txt is modified on every install.
         ci = build_dir / 'conaninfo.txt'
         cf = conanfile(self.source_dir)
-        if cf.is_file() and not is_modified_before(cf, ci):
+        if not is_modified_after(ci, cf):
             self.shell.run(
                 ['conan', 'install', self.source_dir],
                 cwd=build_dir,

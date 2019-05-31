@@ -18,7 +18,7 @@ from cached_property import cached_property  # type: ignore
 import cmakelists_parsing.parsing as cmp  # type: ignore
 from semantic_version import Version  # type: ignore
 
-from cupcake.filesystem import is_modified_before
+from cupcake.filesystem import is_modified_after
 from cupcake.shell import Shell
 
 # It would be easier for us to keep package metadata in a more readable file,
@@ -107,9 +107,9 @@ class CMake:
         build_dir = self.build_dir(config)
         install_dir = self.install_dir(config)
 
-        if (build_dir / 'CMakeCache.txt').is_file():
-            # Depend on CMake to reconfigure itself.
-            # TODO: Will it? Fill the gaps.
+        if is_modified_after(
+            build_dir / 'CMakeCache.txt', self.source_dir / 'CMakeLists.txt'
+        ):
             return
 
         os.makedirs(build_dir, exist_ok=True)
