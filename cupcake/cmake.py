@@ -68,28 +68,29 @@ class CMake:
     generator: t.Optional[str]
     shell: Shell = Shell()
 
+    # Use whatever default generator CMake chooses, unless it is Linux, in
+    # which case choose the better default (Ninja over Make).
+    DEFAULT_GENERATOR: t.Optional[str] = (
+        'Ninja' if platform.system() == 'Linux' else None
+    )
+
+    # TODO: Build a list of generators for the platform.
+
     def build_dir(self, config) -> Path:
         return self.build_dir_prefix / _config_sub_dir(config)
 
     def install_dir(self, config) -> Path:
         return self.install_dir_prefix / _config_sub_dir(config)
 
-    # TODO: Set options from command-line arguments, environment, and
-    # configuration file.
+    # TODO: Set options environment and configuration file.
     @classmethod
     def construct( # pylint: disable=too-many-arguments
         cls, *,
         source_dir: _PathLike = os.getcwd(),
         build_dir_prefix: _PathLike = '.build',
         install_dir_prefix: _PathLike = '.install',
-        generator: str = None,
+        generator: t.Optional[str] = DEFAULT_GENERATOR,
     ):
-        # Use whatever default generator CMake chooses, unless it is Linux, in
-        # which case choose the better default (Ninja over Make).
-        if generator is None:
-            if platform.system() == 'Linux':
-                generator = 'Ninja'
-
         return cls(
             source_dir=Path(source_dir),
             build_dir_prefix=Path(build_dir_prefix),
@@ -107,6 +108,8 @@ class CMake:
         build_dir = self.build_dir(config)
         install_dir = self.install_dir(config)
 
+        # TODO: If `install_dir_prefix` (`CMAKE_INSTALL_PREFIX`) or any `args`
+        # are different, we must reconfigure.
         if is_modified_after(
             build_dir / 'CMakeCache.txt', self.source_dir / 'CMakeLists.txt'
         ):

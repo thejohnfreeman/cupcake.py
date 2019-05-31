@@ -4,9 +4,9 @@ import functools
 import subprocess
 
 import click
-from toolz.functoolz import compose
+from toolz.functoolz import compose  # type: ignore
 
-from cupcake import conan
+from cupcake import cmake, conan
 
 
 @click.group(context_settings={'help_option_names': ('--help', '-h')})
@@ -39,58 +39,109 @@ def _hide_stack_trace():
 
     return decorator
 
+_build_dir_option = click.option( # pylint: disable=invalid-name
+    '--dir',
+    'build_dir_prefix',
+    type=click.Path(),
+    default='.build',
+    help='The build directory.',
+)
+
+# Modeled after `./configure --prefix`.
+_install_dir_option = click.option( # pylint: disable=invalid-name
+    '--prefix',
+    'install_dir_prefix',
+    type=click.Path(),
+    default='.install',
+    help='The installation prefix.',
+)
 
 _config_option = compose( # pylint: disable=invalid-name
     # These must be composed in this order,
     # because `flag_value` sets the default to `False`.
-    click.option('--debug', 'config', flag_value='debug'),
-    click.option('--release', 'config', flag_value='release'),
     click.option(
-        '-c', '--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG
+        '--debug',
+        'config',
+        flag_value='debug',
+        help='Shorthand for --config debug.',
+    ),
+    click.option(
+        '--release',
+        'config',
+        flag_value='release',
+        help='Shorthand for --config release.',
+    ),
+    click.option(
+        '-c',
+        '--config',
+        type=_CONFIG_CHOICES,
+        default=_DEFAULT_CONFIG,
+        help='The build configuration.',
     ),
 )
 
 
 @main.command()
-def clean():
+@_build_dir_option
+@_install_dir_option
+def clean(build_dir_prefix, install_dir_prefix):
     """Remove the build and install directories."""
-    project = conan.Conan.construct()
+    project = conan.Conan.construct(
+        build_dir_prefix=build_dir_prefix,
+        install_dir_prefix=install_dir_prefix,
+    )
     project.clean()
 
 
 @main.command()
+@_build_dir_option
+@_install_dir_option
+@click.option(
+    '-g', '--generator', 'generator', default=cmake.CMake.DEFAULT_GENERATOR
+)
 @_config_option
 @_hide_stack_trace()
-def configure(config):
+def configure(build_dir_prefix, install_dir_prefix, generator, config):
     """Configure the build directory."""
-    project = conan.Conan.construct()
+    project = conan.Conan.construct(
+        build_dir_prefix=build_dir_prefix,
+        install_dir_prefix=install_dir_prefix,
+        generator=generator,
+    )
     project.configure(config)
 
 
 @main.command()
+@_build_dir_option
 @_config_option
 @_hide_stack_trace()
-def build(config):
+def build(build_dir_prefix, config):
     """Build the project."""
-    project = conan.Conan.construct()
+    project = conan.Conan.construct(build_dir_prefix=build_dir_prefix)
     project.build(config)
 
 
 @main.command()
+@_build_dir_option
 @_config_option
 @_hide_stack_trace()
-def test(config):
+def test(build_dir_prefix, config):
     """Test the project."""
-    project = conan.Conan.construct()
+    project = conan.Conan.construct(build_dir_prefix=build_dir_prefix)
     project.test(config)
 
 
 @main.command()
+@_build_dir_option
+@_install_dir_option
 @_config_option
 @_hide_stack_trace()
-def install(config):
+def install(build_dir_prefix, install_dir_prefix, config):
     """Install the project."""
-    project = conan.Conan.construct()
+    project = conan.Conan.construct(
+        build_dir_prefix=build_dir_prefix,
+        install_dir_prefix=install_dir_prefix,
+    )
     project.install(config)
 
 
