@@ -22,7 +22,7 @@ _CONFIG_CHOICES = click.Choice(  # type: ignore
 _DEFAULT_CONFIG = 'debug'
 
 
-def echoes():
+def hide_stack_trace():
     """Hide the stack trace of a ``CalledProcessError``."""
 
     def decorator(f):
@@ -48,7 +48,7 @@ def clean():
 
 @main.command()
 @click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
-@echoes()
+@hide_stack_trace()
 def configure(config):
     """Configure the build directory."""
     project = conan.Conan.construct()
@@ -57,7 +57,7 @@ def configure(config):
 
 @main.command()
 @click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
-@echoes()
+@hide_stack_trace()
 def build(config):
     """Build the project."""
     project = conan.Conan.construct()
@@ -66,7 +66,7 @@ def build(config):
 
 @main.command()
 @click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
-@echoes()
+@hide_stack_trace()
 def test(config):
     """Test the project."""
     project = conan.Conan.construct()
@@ -75,7 +75,7 @@ def test(config):
 
 @main.command()
 @click.option('--config', type=_CONFIG_CHOICES, default=_DEFAULT_CONFIG)
-@echoes()
+@hide_stack_trace()
 def install(config):
     """Install the project."""
     project = conan.Conan.construct()
@@ -83,7 +83,7 @@ def install(config):
 
 
 @main.command()
-@echoes()
+@hide_stack_trace()
 def package():
     """Package the project."""
     project = conan.Conan.construct()
