@@ -101,6 +101,12 @@ def clean(build_dir_prefix, install_dir_prefix):
 )
 @_config_option
 @click.option(
+    '-f',
+    '--force/--no-force',
+    default=False,
+    help='Reconfigure even if everything appears up-to-date.',
+)
+@click.option(
     '-D',
     'definitions',
     multiple=True,
@@ -113,6 +119,7 @@ def configure(
     install_dir_prefix,
     generator,
     config,
+    force,
     definitions,
     cmake_args,
 ):
@@ -126,7 +133,12 @@ def configure(
         raise click.BadParameter(
             'Please use --prefix instead of -DCMAKE_INSTALL_PREFIX.'
         )
-    project.configure(config, *(f'-D{d}' for d in definitions), *cmake_args)
+    project.configure(
+        config,
+        *(f'-D{d}' for d in definitions),
+        *cmake_args,
+        force=force,
+    )
 
 
 @main.command()

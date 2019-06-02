@@ -103,14 +103,14 @@ class CMake:
         shutil.rmtree(self.build_dir_prefix, ignore_errors=True)
         shutil.rmtree(self.install_dir_prefix, ignore_errors=True)
 
-    def configure(self, config, *args):
+    def configure(self, config, *args, force=False):
         """Configure the build directory."""
         build_dir = self.build_dir(config)
         install_dir = self.install_dir(config)
 
         # TODO: If `install_dir_prefix` (`CMAKE_INSTALL_PREFIX`) or any `args`
         # are different, we must reconfigure.
-        if is_modified_after(
+        if not force and is_modified_after(
             build_dir / 'CMakeCache.txt', self.source_dir / 'CMakeLists.txt'
         ):
             return
