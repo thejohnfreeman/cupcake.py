@@ -110,6 +110,7 @@ def clean(build_dir_prefix, install_dir_prefix):
     '-D',
     'definitions',
     multiple=True,
+    metavar='NAME[=VALUE]',
     help='CMake variable definitions.',
 )
 @click.argument('cmake_args', nargs=-1)  # pylint: disable=too-many-arguments
