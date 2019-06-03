@@ -75,6 +75,7 @@ _config_option = compose( # pylint: disable=invalid-name
         '-c',
         '--config',
         type=_CONFIG_CHOICES,
+        callback=lambda ctx, param, value: cmake.BuildConfiguration.lookup(value),
         default=_DEFAULT_CONFIG,
         help='The build configuration.',
     ),
@@ -112,14 +113,14 @@ def clean(build_dir_prefix, install_dir_prefix):
     multiple=True,
     metavar='NAME[=VALUE]',
     help='CMake variable definitions.',
-)
-@click.argument('cmake_args', nargs=-1)  # pylint: disable=too-many-arguments
+)  # pylint: disable=too-many-arguments
+@click.argument('cmake_args', nargs=-1)
 @_hide_stack_trace()
 def configure(
     build_dir_prefix,
     install_dir_prefix,
     generator,
-    config,
+    config: cmake.BuildConfiguration,
     force,
     definitions,
     cmake_args,

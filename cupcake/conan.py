@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import typing as t
 
-from cupcake.cmake import CMake
+from cupcake.cmake import CMake, BuildConfiguration
 from cupcake.filesystem import is_modified_after
 
 
@@ -29,7 +29,7 @@ class Conan(CMake):
             return CMake.construct(**kwargs)
         return super(Conan, cls).construct(**kwargs)
 
-    def configure(self, config, *cmake_args, force=False):
+    def configure(self, config: BuildConfiguration, *cmake_args, force=False):
         """Install dependencies and configure with CMake."""
         build_dir = self.build_dir(config)
         os.makedirs(build_dir, exist_ok=True)
@@ -37,7 +37,7 @@ class Conan(CMake):
         # conaninfo.txt is modified on every install.
         ci = build_dir / 'conaninfo.txt'
         cf = conanfile(self.source_dir)
-        if not is_modified_after(ci, cf):
+        if cf is not None and not is_modified_after(ci, cf):
             self.shell.run(
                 ['conan', 'install', self.source_dir],
                 cwd=build_dir,
