@@ -68,11 +68,21 @@ class CMake:
 
     # Use whatever default generator CMake chooses, unless it is Linux, in
     # which case choose the better default (Ninja over Make).
+    # TODO: Build a list of generators for the platform.
     DEFAULT_GENERATOR: t.Optional[str] = (
         'Ninja' if platform.system() == 'Linux' else None
     )
 
-    # TODO: Build a list of generators for the platform.
+    DEFAULT_CMAKE_ARGS = (
+        # Enable developer warnings.
+        '-Wdev',
+        # Enable deprecation warnings.
+        '-Wdeprecated',
+        # All variables are effectively initialized to the empty string.
+        # '--warn-uninitialized',
+        # Most (automatic) variables go unused. Do not warn about them.
+        # '--warn-unused-vars',
+    )
 
     def build_dir(self, config: BuildConfiguration) -> Path:
         return self.build_dir_prefix / _config_sub_dir(config)
@@ -132,6 +142,7 @@ class CMake:
         self.shell.run(
             [
                 'cmake',
+                *self.DEFAULT_CMAKE_ARGS,
                 # There is no long option for `-G`.
                 '-G',
                 self.generator,
@@ -154,6 +165,7 @@ class CMake:
         self.shell.run(
             [
                 'cmake',
+                *self.DEFAULT_CMAKE_ARGS,
                 '--build',
                 '.',
                 '--config',
@@ -183,7 +195,14 @@ class CMake:
         """Install the project."""
         self.configure(config)
         self.shell.run(
-            ['cmake', '--build', '.', '--target', 'install'],
+            [
+                'cmake',
+                *self.DEFAULT_CMAKE_ARGS,
+                '--build',
+                '.',
+                '--target',
+                'install',
+            ],
             cwd=self.build_dir(config),
         )
 
