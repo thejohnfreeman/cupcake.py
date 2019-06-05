@@ -157,10 +157,11 @@ def build(build_dir_prefix, config):
 @_build_dir_option
 @_config_option
 @_hide_stack_trace()
-def test(build_dir_prefix, config):
+@click.argument('ctest_args', nargs=-1)
+def test(build_dir_prefix, config, ctest_args):
     """Test the project."""
     project = conan.Conan.construct(build_dir_prefix=build_dir_prefix)
-    project.test(config)
+    project.test(config, *ctest_args)
 
 
 @main.command()

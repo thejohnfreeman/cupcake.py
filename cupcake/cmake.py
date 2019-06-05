@@ -164,7 +164,7 @@ class CMake:
             cwd=self.build_dir(config),
         )
 
-    def test(self, config: BuildConfiguration):
+    def test(self, config: BuildConfiguration, *ctest_args: t.Iterable[str]):
         """Test the project."""
         self.configure(config)
         self.shell.run(
@@ -174,6 +174,7 @@ class CMake:
                 config.value,
                 '--parallel',
                 multiprocessing.cpu_count(),
+                *ctest_args,
             ],
             cwd=self.build_dir(config),
         )
