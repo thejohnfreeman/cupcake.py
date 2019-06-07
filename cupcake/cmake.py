@@ -157,6 +157,8 @@ class CMake:
             cwd=build_dir,
         )
 
+        (build_dir / 'CMakeCache.txt').touch()
+
     def build(self, config: BuildConfiguration):
         """Build the project."""
         self.configure(config)
