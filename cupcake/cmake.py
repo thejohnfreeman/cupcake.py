@@ -73,17 +73,6 @@ class CMake:
         'Ninja' if platform.system() == 'Linux' else None
     )
 
-    DEFAULT_CMAKE_ARGS = (
-        # Enable developer warnings.
-        '-Wdev',
-        # Enable deprecation warnings.
-        '-Wdeprecated',
-        # All variables are effectively initialized to the empty string.
-        # '--warn-uninitialized',
-        # Most (automatic) variables go unused. Do not warn about them.
-        # '--warn-unused-vars',
-    )
-
     def build_dir(self, config: BuildConfiguration) -> Path:
         return self.build_dir_prefix / _config_sub_dir(config)
 
@@ -142,7 +131,16 @@ class CMake:
         self.shell.run(
             [
                 'cmake',
-                *self.DEFAULT_CMAKE_ARGS,
+                # Enable developer warnings.
+                '-Wdev',
+                # Enable deprecation warnings.
+                '-Wdeprecated',
+                # All variables are effectively initialized to the empty
+                # string.
+                # '--warn-uninitialized',
+                # Most (automatic) variables go unused. Do not warn about
+                # them.
+                # '--warn-unused-vars',
                 # There is no long option for `-G`.
                 '-G',
                 self.generator,
@@ -165,7 +163,6 @@ class CMake:
         self.shell.run(
             [
                 'cmake',
-                *self.DEFAULT_CMAKE_ARGS,
                 '--build',
                 '.',
                 '--config',
@@ -197,7 +194,6 @@ class CMake:
         self.shell.run(
             [
                 'cmake',
-                *self.DEFAULT_CMAKE_ARGS,
                 '--build',
                 '.',
                 '--target',
