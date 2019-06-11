@@ -10,7 +10,8 @@ from cupcake import cmake, conan
 
 
 @click.group(context_settings={'help_option_names': ('--help', '-h')})
-def main():
+@click.version_option()
+def main(version):
     pass
 
 
