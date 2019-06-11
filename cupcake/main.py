@@ -11,7 +11,7 @@ from cupcake import cmake, conan
 
 @click.group(context_settings={'help_option_names': ('--help', '-h')})
 @click.version_option()
-def main(version):
+def main():
     pass
 
 
