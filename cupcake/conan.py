@@ -39,7 +39,15 @@ class Conan(CMake):
         cf = conanfile(self.source_dir)
         if cf is not None and not is_modified_after(ci, cf):
             self.shell.run(
-                ['conan', 'install', self.source_dir],
+                [
+                    'conan',
+                    'install',
+                    '--setting',
+                    f'build_type={config.value}',
+                    '--build',
+                    'missing',
+                    self.source_dir,
+                ],
                 cwd=build_dir,
             )
 
