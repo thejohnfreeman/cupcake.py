@@ -1,69 +1,80 @@
 """Conan as a package manager for CMake."""
 
+import logging
 import os
-from pathlib import Path
-import typing as t
+import tempfile
 
-from cupcake.cmake import CMake, BuildConfiguration
-from cupcake.filesystem import is_modified_after
+from cached_property import cached_property
 
-
-def conanfile(source_dir: Path) -> t.Optional[Path]:
-    path = source_dir / 'conanfile.py'
-    if path.is_file():
-        return path
-    path = source_dir / 'conanfile.txt'
-    if path.is_file():
-        return path
-    return None
+from cupcake.cmake import CMake
+from cupcake import filesystem
 
 
 class Conan(CMake):
-    # Conan needs to wrap CMake because it knows how to satisfy CMake's
-    # assumptions.
 
-    @classmethod
-    def construct(cls, *, source_dir='.', **kwargs):  # pylint: disable=arguments-differ
-        source_dir = Path(source_dir)
-        if conanfile(source_dir) is None:
-            return CMake.construct(**kwargs)
-        return super(Conan, cls).construct(**kwargs)
+    def conanfile(self):
+        return self.configuration.source_directory / 'conanfile.txt'
 
-    def configure(self, config: BuildConfiguration, *cmake_args, force=False):
-        """Install dependencies and configure with CMake."""
-        build_dir = self.build_dir(config)
-        os.makedirs(build_dir, exist_ok=True)
+    def conan_configuration_changed(self):
+        conaninfo = self.build_directory / 'conaninfo.txt'
+        try:
+            toolchain_time = conaninfo.stat().st_mtime
+        except FileNotFoundError:
+            logging.debug(f'missing Conan cache file: {conaninfo}')
+            return True
+        if self.conanfile.stat().st_mtime > toolchain_time:
+            logging.debug(f'changed Conan configuration: {self.conanfile}')
+            return True
+        return False
 
-        # conaninfo.txt is modified on every install.
-        ci = build_dir / 'conaninfo.txt'
-        cf = conanfile(self.source_dir)
-        if cf is not None and not is_modified_after(ci, cf):
+    @cached_property
+    def conan_toolchain_file(self):
+        if self.force or self.conan_configuration_changed():
             self.shell.run(
                 [
                     'conan',
                     'install',
-                    '--setting',
-                    f'build_type={config.value}',
+                    self.configuration.source_directory,
+                    '--settings',
+                    f'build_type={self.configuration.flavor.value}',
                     '--build',
                     'missing',
-                    self.source_dir,
-                ],
-                cwd=build_dir,
+                ]
             )
+        return self.cmake_directory / 'conan_paths.cmake'
 
-        cmake_toolchain_file = build_dir / 'conan_paths.cmake'
-        cmake_args_conan = (
-            [f'-DCMAKE_TOOLCHAIN_FILE={cmake_toolchain_file}']
-            if cmake_toolchain_file.is_file() else []
-        )
-        super().configure(config, *cmake_args_conan, *cmake_args, force=force)
-
-    def package(self):
-        self.shell.run(
-            [
-                'conan',
-                'create',
-                self.source_dir,
-                f'{self.name}/{self.version}@demo/testing',
-            ]
-        )
+    @cached_property
+    def cmake_toolchain_file(self):
+        super().cmake_toolchain_file
+        self.conan_toolchain_file
+        # Because we don't have sub-second resolution on modification times,
+        # we need a file that never existed to track whether we have already
+        # merged the CMake and Conan toolchain files.
+        path = self.cmake_directory / 'merged_toolchain.cmake'
+        if not path.is_file():
+            with path.open('w') as file:
+                print(
+                    'include(${CMAKE_CURRENT_LIST_DIR}/toolchain.cmake)',
+                    file=file
+                )
+                # The Conan generator cmake_find_package installs Find Modules
+                # in the current directory, but does not add that directory to
+                # the CMAKE_MODULE_PATH it defines in conan_paths.cmake.
+                # We must pass it ourselves.
+                print(
+                    f'set(CMAKE_MODULE_PATH, {self.cmake_directory})',
+                    file=file
+                )
+                # The Conan generator cmake_find_package_multi installs
+                # Package Configuration Files in the current directory, but
+                # does not add that directory to the CMAKE_PREFIX_PATH it
+                # defines in conan_paths.cmake. We must pass it ourselves.
+                print(
+                    f'set(CMAKE_PREFIX_PATH, {self.cmake_directory})',
+                    file=file
+                )
+                print(
+                    'include(${CMAKE_CURRENT_LIST_DIR}/conan_paths.cmake)',
+                    file=file
+                )
+        return path

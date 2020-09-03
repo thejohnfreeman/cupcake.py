@@ -21,9 +21,9 @@ def test_build(project_template_cpp, tmp_path):
             tmp_path,
         ]
     )
-    assert (tmp_path / 'debug' / 'src' / 'libgreetings.a').is_file()
+    assert (tmp_path / 'Debug' / 'src' / 'libgreetings.a').is_file()
     assert subprocess.check_output(
-        [tmp_path / 'debug' / 'src' / 'greet']
+        [tmp_path / 'Debug' / 'src' / 'greet']
     ) == b'hello!\n'
 
 
@@ -63,3 +63,7 @@ def test_install(project_template_cpp, tmp_path):
     )
     assert (prefix / 'lib' / 'libgreetings.a').is_file()
     assert subprocess.check_output([prefix / 'bin' / 'greet']) == b'hello!\n'
+
+
+# TODO: Install the library to a prefix, and build an example against that
+# installation.

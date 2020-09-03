@@ -22,6 +22,9 @@ class Shell:
         # Let callers pass `int`s. Just do the right thing.
         command = tuple(str(arg) for arg in command)
         kwargs = {**self.defaults, **kwargs}
-        # TODO: Prefix with the CWD?
-        print('$ ' + ' '.join(shlex.quote(arg) for arg in command), file=self.log)
+        prefix = str(self.defaults.get('cwd', '.')) + ' $ '
+        print(
+            prefix + ' '.join(shlex.quote(arg) for arg in command),
+            file=self.log
+        )
         return subprocess.run(command, *args, **kwargs)

@@ -1,27 +1,16 @@
 """The command-line application."""
 
 import functools
+import logging
+from pathlib import Path
 import subprocess
 
 import click
 from toolz.functoolz import compose  # type: ignore
 
-from cupcake import cmake, conan
-
-
-@click.group(context_settings={'help_option_names': ('--help', '-h')})
-@click.version_option()
-def main():
-    pass
-
-
-# A mapping from lowercase names to CMake names.
-# TODO: When mypy updates after 0.701, we should be able to remove this `type:
-# ignore`.
-_CONFIG_CHOICES = click.Choice(  # type: ignore
-    ('debug', 'release', 'minsizerel', 'relwithdebinfo'), case_sensitive=False
-)
-_DEFAULT_CONFIG = 'debug'
+from cupcake.config import Configuration, GENERATOR_ALIASES
+from cupcake.cmake import CMake
+from cupcake.conan import Conan
 
 
 def _hide_stack_trace():
@@ -32,7 +21,7 @@ def _hide_stack_trace():
         @functools.wraps(f)
         def wrapped(*args, **kwargs):
             try:
-                f(*args, **kwargs)
+                return f(*args, **kwargs)
             except subprocess.CalledProcessError as cause:
                 raise SystemExit(cause.returncode)
 
@@ -40,149 +29,197 @@ def _hide_stack_trace():
 
     return decorator
 
-_build_dir_option = click.option( # pylint: disable=invalid-name
-    '--dir',
-    'build_dir_prefix',
+
+@click.group(context_settings={'help_option_names': ('--help', '-h')})
+@click.option('-v', '--verbose', count=True)
+@click.option('-q', '--quiet', count=True)
+@click.version_option()
+def main(verbose, quiet):
+    logging.basicConfig(level=(3 - verbose + quiet) * 10)
+    pass
+
+
+_DEFAULT_CONFIGURATION = {
+    'configure_source_directory': '.',
+    'configure_build_directory': '.build',
+    'configure_generator': 'Ninja',
+    'configure_flavor': 'debug',
+    'configure_shared': False,
+    'install_prefix': '.install',
+}
+
+
+_configure_source_directory_option = click.option( # pylint: disable=invalid-name
+    '--source-directory',
+    'configure_source_directory',
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIGURATION['configure_source_directory'],
+    help='The source directory.',
+)
+
+_configure_build_directory_option = click.option( # pylint: disable=invalid-name
+    '-d',
+    '--build-directory',
+    'configure_build_directory',
     type=click.Path(),
-    default='.build',
+    default=_DEFAULT_CONFIGURATION['configure_build_directory'],
     help='The build directory.',
 )
 
-# Modeled after `./configure --prefix`.
-_install_dir_option = click.option( # pylint: disable=invalid-name
-    '--prefix',
-    'install_dir_prefix',
-    type=click.Path(),
-    default='.install',
-    help='The installation prefix.',
+_configure_generator_option = click.option( # pylint: disable=invalid-name
+    '-g',
+    '--generator',
+    'configure_generator',
+    type=click.Choice(GENERATOR_ALIASES.keys(), case_sensitive=False),
+    default=_DEFAULT_CONFIGURATION['configure_generator'],
+    help='The build system generator.',
 )
 
-_config_option = compose( # pylint: disable=invalid-name
-    # These must be composed in this order,
-    # because `flag_value` sets the default to `False`.
+_configure_flavor_option = compose( # pylint: disable=invalid-name
     click.option(
         '--debug',
-        'config',
+        'configure_flavor',
         flag_value='debug',
-        help='Shorthand for --config debug.',
+        help='Shorthand for --flavor debug.',
     ),
     click.option(
         '--release',
-        'config',
+        'configure_flavor',
         flag_value='release',
-        help='Shorthand for --config release.',
+        help='Shorthand for --flavor release.',
+    ),
+    # This must be composed last
+    # because `flag_value` sets the default to `False`.
+    click.option(
+        '--flavor',
+        'configure_flavor',
+        default=_DEFAULT_CONFIGURATION['configure_flavor'],
+        help='The configuration flavor.',
+    ),
+)
+
+_configure_shared_option = compose( # pylint: disable=invalid-name
+    click.option(
+        '--shared',
+        'configure_shared',
+        flag_value=True,
+        help='Build shared libraries.',
     ),
     click.option(
-        '-c',
-        '--config',
-        type=_CONFIG_CHOICES,
-        callback=lambda ctx, param, value: cmake.BuildConfiguration.lookup(value),
-        default=_DEFAULT_CONFIG,
-        help='The build configuration.',
+        '--static',
+        'configure_shared',
+        flag_value=False,
+        help='Build static libraries.',
     ),
 )
 
-
-@main.command()
-@_build_dir_option
-@_install_dir_option
-def clean(build_dir_prefix, install_dir_prefix):
-    """Remove the build and install directories."""
-    project = conan.Conan.construct(
-        build_dir_prefix=build_dir_prefix,
-        install_dir_prefix=install_dir_prefix,
-    )
-    project.clean()
-
-
-@main.command()
-@_build_dir_option
-@_install_dir_option
-@click.option(
-    '-g', '--generator', 'generator', default=cmake.CMake.DEFAULT_GENERATOR
-)
-@_config_option
-@click.option(
-    '-f',
-    '--force/--no-force',
-    default=False,
-    help='Reconfigure even if everything appears up-to-date.',
-)
-@click.option(
+_configure_definitions_option = click.option(
     '-D',
-    'definitions',
+    'configure_definitions',
     multiple=True,
     metavar='NAME[=VALUE]',
     help='CMake variable definitions.',
-)  # pylint: disable=too-many-arguments
-@click.argument('cmake_args', nargs=-1)
+)
+
+_configure_options = compose(
+    _configure_source_directory_option,
+    _configure_build_directory_option,
+    _configure_generator_option,
+    _configure_flavor_option,
+    _configure_shared_option,
+    _configure_definitions_option,
+)
+
+
+@main.command()
+@_configure_options
 @_hide_stack_trace()
 def configure(
-    build_dir_prefix,
-    install_dir_prefix,
-    generator,
-    config: cmake.BuildConfiguration,
-    force,
-    definitions,
-    cmake_args,
+    *,
+    configure_source_directory,
+    configure_build_directory,
+    configure_generator,
+    configure_flavor,
+    configure_shared,
+    configure_definitions,
+    **kwargs,
 ):
-    """Configure the build directory."""
-    project = conan.Conan.construct(
-        build_dir_prefix=build_dir_prefix,
-        install_dir_prefix=install_dir_prefix,
-        generator=generator,
+    """Configure the build."""
+    configuration = Configuration.from_all(
+        source_directory=configure_source_directory,
+        build_directory=configure_build_directory,
+        generator=configure_generator,
+        flavor=configure_flavor,
+        shared=configure_shared,
+        definitions=configure_definitions,
     )
-    if any(d.startswith('CMAKE_INSTALL_PREFIX') for d in definitions):
-        raise click.BadParameter(
-            'Please use --prefix instead of -DCMAKE_INSTALL_PREFIX.'
-        )
-    project.configure(
-        config,
-        *(f'-D{d}' for d in definitions),
-        *cmake_args,
-        force=force,
-    )
+    logging.debug(configuration)
+    cupcake = Conan(configuration)
+    cupcake.configure()
+    return cupcake
+
+
+_build_options = compose(_configure_options)
 
 
 @main.command()
-@_build_dir_option
-@_config_option
+@_build_options
+@click.pass_context
 @_hide_stack_trace()
-def build(build_dir_prefix, config):
-    """Build the project."""
-    project = conan.Conan.construct(build_dir_prefix=build_dir_prefix)
-    project.build(config)
+def build(context, **kwargs):
+    """Build the package."""
+    cupcake = context.forward(configure)
+    cupcake.build()
+    return cupcake
 
 
 @main.command()
-@_build_dir_option
-@_config_option
+@_build_options
+@click.argument('targets', nargs=-1)
+@click.pass_context
 @_hide_stack_trace()
-@click.argument('ctest_args', nargs=-1)
-def test(build_dir_prefix, config, ctest_args):
-    """Test the project."""
-    project = conan.Conan.construct(build_dir_prefix=build_dir_prefix)
-    project.test(config, *ctest_args)
+def test(context, targets, **kwargs):
+    """Build and execute the tests."""
+    cupcake = context.forward(configure)
+    cupcake.build(targets)
+    cupcake.test()
+    return cupcake
+
+
+_install_prefix_option = click.option( # pylint: disable=invalid-name
+    '-p',
+    '--prefix',
+    'install_prefix',
+    type=click.Path(),
+    default=_DEFAULT_CONFIGURATION['install_prefix'],
+    help='The installation prefix. A relative path is taken relative to the source directory.',
+)
+
+_install_options = compose(
+    _build_options,
+    _install_prefix_option,
+)
 
 
 @main.command()
-@_build_dir_option
-@_install_dir_option
-@_config_option
+@_install_options
+@click.pass_context
 @_hide_stack_trace()
-def install(build_dir_prefix, install_dir_prefix, config):
-    """Install the project."""
-    project = conan.Conan.construct(
-        build_dir_prefix=build_dir_prefix,
-        install_dir_prefix=install_dir_prefix,
-    )
-    project.install(config)
+def install(context, *, install_prefix, **kwargs):
+    """Install the package."""
+    cupcake = context.forward(configure)
+    cupcake.build()
+    cupcake.install(prefix=install_prefix)
 
 
 @main.command()
+@_build_options
+@click.argument('target')
+@click.argument('arguments', nargs=-1)
+@click.pass_context
 @_hide_stack_trace()
-def package():
-    """Package the project."""
-    project = conan.Conan.construct()
-    project.package()
-    # TODO: Test package.
+def run(context, target, arguments, **kwargs):
+    """Run an executable target."""
+    cupcake = context.forward(configure)
+    cupcake.build([target])
+    cupcake.run(target, arguments)
