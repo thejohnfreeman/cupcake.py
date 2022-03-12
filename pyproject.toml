@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Cargo for C++"
 authors = ["John Freeman <jfreeman08@gmail.com>"]
 
+[tool.poetry.scripts]
+cupcake = 'cupcake.main:main'
+
 [tool.poetry.dependencies]
 python = "^3.8"
 
