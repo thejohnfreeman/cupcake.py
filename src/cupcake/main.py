@@ -26,6 +26,10 @@ _GENERATORS = {
     'Ninja': {'multi': False},
 }
 
+def is_multi(generator):
+    # Assume a generator is single-config.
+    return _GENERATORS[generator].get('multi', False)
+
 class Value:
     def __init__(self, parent, name, value):
         self.parent = parent
@@ -121,7 +125,7 @@ class Cupcake:
         id = [generator, shared]
         flavors = self.config.cmake.flavors([])
         cmake_dir = self.build_dir / 'cmake'
-        if not _GENERATORS[generator]['multi']:
+        if not is_multi(generator):
             cmake_dir /= flavor
         if self.config.cmake.id() != id:
             shutil.rmtree(self.build_dir / 'cmake', ignore_errors=True)
@@ -159,7 +163,7 @@ class Cupcake:
             str(psutil.cpu_count()),
         ]
         if target is not None:
-            command.append('--target', target)
+            command.extend(['--target', target])
         run(command)
 
 
@@ -218,6 +222,23 @@ def configure(context, generator, flavor, shared):
 @click.argument('target', required=False, default=None)
 def build(flavor, target):
     cupcake.build(flavor, target)
+    cupcake.save()
+
+
+@main.command()
+@_option_flavor
+def test(flavor):
+    generator = cupcake.config.cmake.generator()
+    target = 'RUN_TESTS' if is_multi(generator) else 'test'
+    cupcake.build(flavor, target)
+    cupcake.save()
+
+
+@main.command()
+@_option_flavor
+def install(flavor):
+    cupcake.build(flavor, 'install')
+    cupcake.save()
 
 
 @main.command()
