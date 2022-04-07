@@ -3,16 +3,22 @@ name = "cupcake"
 version = "0.1.0"
 description = "Cargo for C++"
 authors = ["John Freeman <jfreeman08@gmail.com>"]
+packages = [{include = "cupcake", from = "src"}]
 
 [tool.poetry.scripts]
 cupcake = 'cupcake.main:main'
 
 [tool.poetry.dependencies]
 python = "^3.8"
+click = "^8.0.4"
+psutil = "^5.9.0"
+click-option-group = "^0.5.3"
+toolz = "^0.11.2"
+tomlkit = "^0.10.1"
 
 [tool.poetry.dev-dependencies]
-pytest = "^5.2"
+pytest = "^7.0.1"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
