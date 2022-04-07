@@ -28,7 +28,7 @@ _GENERATORS = {
 
 def is_multi(generator):
     # Assume a generator is single-config.
-    return _GENERATORS[generator].get('multi', False)
+    return _GENERATORS.get(generator, {}).get('multi', False)
 
 class Value:
     def __init__(self, parent, name, value):
@@ -244,3 +244,29 @@ def install(flavor):
 @main.command()
 def clear():
     cupcake.clear()
+
+
+@main.command()
+@click.argument('path', required=False, default='.')
+def new(path):
+    import jinja2
+
+    loader = jinja2.PackageLoader('cupcake', 'data')
+    env = jinja2.Environment(loader=loader, keep_trailing_newline=True)
+
+    # TODO: Load user configuration.
+    config = dict(
+        license='ISC',
+        author='John Freeman <jfreeman08@gmail.com>',
+        github='thejohnfreeman',
+    )
+
+    prefix = pathlib.Path(path).resolve()
+    name = prefix.name
+
+    for tname in loader.list_templates():
+        suffix = env.from_string(tname).render(**config, name=name)
+        path = pathlib.Path(prefix, suffix)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        template = env.get_template(tname)
+        path.write_text(template.render(**config, name=name))
