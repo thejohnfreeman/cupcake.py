@@ -98,7 +98,7 @@ class Cupcake:
         conan_dir = self.build_dir / 'conan'
         if self.config.conan.id() != id:
             # Dependencies have changed. Clear everything.
-            shutil.rmtree(conan_dir, ignore_errors=True)
+            shutil.rmtree(self.build_dir / 'conan', ignore_errors=True)
         elif flavor in flavors:
             # We have previously created this resource.
             return conan_dir
@@ -121,12 +121,12 @@ class Cupcake:
         id = [generator, shared]
         flavors = self.config.cmake.flavors([])
         cmake_dir = self.build_dir / 'cmake'
-        if self.config.cmake.id() != id:
-            shutil.rmtree(cmake_dir, ignore_errors=True)
-        elif flavor in flavors:
-            return
         if not _GENERATORS[generator]['multi']:
             cmake_dir /= flavor
+        if self.config.cmake.id() != id:
+            shutil.rmtree(self.build_dir / 'cmake', ignore_errors=True)
+        elif flavor in flavors:
+            return cmake_dir
         cmake_dir.mkdir(parents=True)
         run(
             [
@@ -141,12 +141,15 @@ class Cupcake:
         self.config.cmake.id = id
         self.config.cmake.generator = generator
         self.config.cmake.flavors = [*flavors, flavor]
+        self.config.cmake.shared = shared
         return cmake_dir
 
-    def build(self, target=None):
-        cmake_dir = self.build_dir / 'cmake'
-        if _GENERATORS[self.config.cmake.generator()]['multi']:
-            cmake_dir /= self.selection
+    def build(self, flavor, target):
+        cmake_dir = self.cmake(
+            self.config.cmake.generator('Ninja'),
+            flavor,
+            self.config.cmake.shared(False),
+        )
         command = [
             CMAKE,
             '--build',
@@ -173,8 +176,13 @@ _option_flavor = toolz.compose(
     optgroup.group('Flavor'),
     optgroup.option('--release', 'flavor', flag_value='Release'),
     optgroup.option('--debug', 'flavor', flag_value='Debug'),
-    optgroup.option('--flavor', default='Release', show_default=True,
-                    envvar='CUPCAKE_FLAVOR', show_envvar=True),
+    optgroup.option(
+        '--flavor',
+        default=cupcake.config.selection('Release'),
+        show_default=True,
+        envvar='CUPCAKE_FLAVOR',
+        show_envvar=True,
+    ),
 )
 
 @main.command()
@@ -206,8 +214,10 @@ def configure(context, generator, flavor, shared):
 
 
 @main.command()
-def build(target=None):
-    cupcake.build()
+@_option_flavor
+@click.argument('target', required=False, default=None)
+def build(flavor, target):
+    cupcake.build(flavor, target)
 
 
 @main.command()
