@@ -16,7 +16,7 @@ class {{ name | capitalize }}(ConanFile):
     requires = []
     generators = 'CMakeToolchain', 'cmake_find_package_multi'
 
-    exports_sources = 'CMakeLists.txt', 'cmake/*', 'include/*', 'src/*'
+    exports_sources = 'conanfile.txt', 'CMakeLists.txt', 'cmake/*', 'include/*', 'src/*'
     # For out-of-source build.
     # https://docs.conan.io/en/latest/reference/build_helpers/cmake.html#configure
     no_copy_source = True
