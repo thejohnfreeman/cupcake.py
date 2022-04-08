@@ -1,11 +1,14 @@
 import click
 from click_option_group import optgroup
+from contextlib import contextmanager
 import hashlib
 import os
 import pathlib
 import psutil
+import re
 import shutil
 import subprocess
+import tempfile
 import tomlkit
 import toolz
 
@@ -17,7 +20,7 @@ CMAKE = os.environ.get('CMAKE', 'cmake')
 
 def run(command, *args, **kwargs):
     print(' '.join(str(arg) for arg in command))
-    subprocess.run(command, *args, **kwargs)
+    return subprocess.run(command, *args, **kwargs)
 
 _MISSING = object()
 _SELVES = {}
@@ -270,3 +273,70 @@ def new(path):
         path.parent.mkdir(parents=True, exist_ok=True)
         template = env.get_template(tname)
         path.write_text(template.render(**config, name=name))
+
+@main.command()
+@click.argument('query')
+def search(query):
+    run([CONAN, 'search', '--remote', 'conancenter', query])
+
+def is_package_ref(query):
+    process = subprocess.run([
+        CONAN, 'info',
+        '--remote', 'conancenter',
+        '--only', 'None',
+        query + '@',
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return not process.returncode
+
+@contextmanager
+def atomic_file(path):
+    (file, tpath) = tempfile.mkstemp()
+    file = os.fdopen(file, 'w')
+    try:
+        yield file
+    finally:
+        if file.closed:
+            os.replace(tpath, path)
+        else:
+            file.close()
+            os.remove(tpath)
+
+@main.command()
+@click.argument('package')
+@click.option('--dev', '-D', is_flag=True)
+def add(package, dev):
+    # If the given package is not a complete reference, try to complete it
+    # by selecting the latest version.
+    if not is_package_ref(package):
+        process = run(
+            [CONAN, 'search', '--remote', 'conancenter', package],
+            capture_output=True, text=True,
+        )
+        selection = process.stdout.split()[-1]
+        if not is_package_ref(selection):
+            raise SystemExit(f'unknown package: {package}')
+        package = selection
+    section = '[tool_requires]' if dev else '[requires]'
+    with atomic_file('conanfile.txt') as ofile:
+        ifile = open('conanfile.txt', 'r')
+        entered = False
+        for line in ifile:
+            ofile.write(line)
+            if line == section:
+                entered = True
+                break
+        if not entered:
+            print('', file=ofile)
+            print(section, file=ofile)
+        eof = False
+        for line in ifile:
+            if re.match('^\[[^]]+\]$', line) or line > package:
+                break
+        else:
+            eof = True
+        print(package, file=ofile)
+        if not eof:
+            ofile.write(line)
+        for line in ifile:
+            ofile.write(line)
+        ofile.close()
