@@ -12,9 +12,8 @@ class {{ name | capitalize }}(ConanFile):
     options = {'shared': [True, False], 'fPIC': [True, False]}
     default_options = {'shared': False, 'fPIC': True}
 
-    tool_requires = ['cupcake/0.0.0', 'doctest/2.4.8']
-    requires = []
-    generators = 'CMakeToolchain', 'cmake_find_package_multi'
+    requires = ['cupcake/0.1.0', 'doctest/2.4.8']
+    generators = 'CMakeDeps', 'CMakeToolchain'
 
     exports_sources = 'conanfile.txt', 'CMakeLists.txt', 'cmake/*', 'include/*', 'src/*'
     # For out-of-source build.

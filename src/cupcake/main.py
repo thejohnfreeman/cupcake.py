@@ -232,7 +232,6 @@ class Cupcake:
             if state_.cmake.id() == id:
                 if flavor_ in old_flavors:
                     return state_.cmake
-                print('here')
                 if not state_.cmake.multiConfig():
                     cmake_dir = cmake_dir / flavor_
                     cmake_dir.mkdir()
@@ -298,6 +297,34 @@ class Cupcake:
         }
         command = shlex.split(template.render(**context))
         run(command)
+
+    @cascade.command()
+    @cascade.argument('path', required=False, default='.')
+    def new(self, path):
+        """Create a new project."""
+        loader = jinja2.PackageLoader('cupcake', 'data/new')
+        env = jinja2.Environment(loader=loader, keep_trailing_newline=True)
+
+        # TODO: Take these values from a user config or Git.
+        # $ git config user.name
+        # $ git config user.email
+        context = dict(
+            license='ISC',
+            author='John Freeman <jfreeman08@gmail.com>',
+            github='thejohnfreeman',
+        )
+
+        prefix = pathlib.Path(path).resolve()
+        if prefix.exists() and any(prefix.iterdir()):
+            raise SystemExit('directory is not empty')
+        name = prefix.name
+
+        for tname in loader.list_templates():
+            suffix = env.from_string(tname).render(**context, name=name)
+            path = pathlib.Path(prefix, suffix)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            template = env.get_template(tname)
+            path.write_text(template.render(**context, name=name))
 
     @cascade.command()
     @cascade.argument('query')
