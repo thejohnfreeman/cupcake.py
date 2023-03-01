@@ -40,7 +40,6 @@ FLAVORS = {
     'debug': 'Debug',
 }
 
-# TODO: Turn this into a builder.
 class CMake:
     @staticmethod
     def is_multi_config(generator):
@@ -112,16 +111,23 @@ class Cupcake:
 
     @cascade.value()
     @cascade.option('--build-dir', '-B')
-    def build_dir_(self, source_dir_, config_, build_dir) -> pathlib.Path:
+    def build_dir_path_(self, source_dir_, config_, build_dir) -> pathlib.Path:
         """
         :param build_dir: pretty format of build directory
         """
-        # TODO: Separate construction of build directory from its name
-        # calculation, otherwise `clean` will make it just to destroy it.
+        # This value is separate from `build_dir_` so that `clean` can use the
+        # path without creating the directory.
         build_dir = confee.resolve(build_dir, config_.directory, '.build')
         build_dir = source_dir_ / build_dir
-        build_dir.mkdir(parents=True, exist_ok=True)
         return build_dir
+
+    @cascade.value()
+    def build_dir_(self, build_dir_path_) -> pathlib.Path:
+        """
+        :param build_dir: pretty format of build directory
+        """
+        build_dir_path_.mkdir(parents=True, exist_ok=True)
+        return build_dir_path_
 
     @cascade.value()
     def state_(self, build_dir_):
@@ -262,6 +268,7 @@ class Cupcake:
     @cascade.command()
     @cascade.option('--jobs', '-j')
     def build(self, cmake_dir_, flavor_, cmake, jobs):
+        """Build the selected flavor."""
         args = ['--verbose']
         if cmake.multiConfig():
             args.extend(['--config', FLAVORS[flavor_]])
@@ -273,6 +280,7 @@ class Cupcake:
 
     @cascade.command()
     def test(self, cmake_dir_, flavor_, cmake):
+        """Test the selected flavor."""
         args = []
         if cmake.multiConfig():
             target = 'RUN_TESTS'
@@ -288,8 +296,8 @@ class Cupcake:
         run([CONAN, 'search', '--remote', 'all', query])
 
     @cascade.command()
-    def clean(self, build_dir_):
+    def clean(self, build_dir_path_):
         """Remove the build directory."""
-        shutil.rmtree(build_dir_, ignore_errors=True)
+        shutil.rmtree(build_dir_path_, ignore_errors=True)
 
 Cupcake()
