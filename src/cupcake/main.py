@@ -138,6 +138,7 @@ class Cupcake:
 
     @cascade.command()
     @cascade.option('--profile')
+    # TODO: Add option to configure shared linkage.
     def conan(self, source_dir_, build_dir_, config_, state_, flavor_, profile):
         """Configure Conan."""
         # TODO: Resolve `flavor` against `selection` in config,
@@ -258,7 +259,8 @@ class Cupcake:
             build_dir_ /= flavor_
         command = [
             CMAKE, '--build', build_dir_, '--config', FLAVORS[flavor_],
-            '--parallel'
+            '--verbose',
+            '--parallel',
         ]
         if jobs is not None:
             command.append(jobs)
