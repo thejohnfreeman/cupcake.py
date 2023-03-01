@@ -148,10 +148,6 @@ class Cupcake:
     # TODO: Add option to configure shared linkage.
     def conan(self, source_dir_, build_dir_, config_, state_, flavor_, profile):
         """Configure Conan."""
-        # TODO: Resolve `flavor` against `selection` in config,
-        # but only once and shared by all methods.
-        # Requires cached method for selection, where methods do not have to
-        # worry about passing parameters to dependencies.
         # TODO: Respect `conan config get general.default_profile`.
         profile = confee.resolve(profile, config_.conan.profile, 'default')
         # TODO: Accept parameter to override settings.
@@ -166,7 +162,6 @@ class Cupcake:
         m.update(profile_path.read_bytes())
         m.update(conanfile_path.read_bytes())
         id = m.hexdigest()
-        # TODO: Parse and format flavor names between Conan and .cupcake.toml.
         old_flavors = state_.conan.flavors([])
         new_flavors = list({*config_.flavors([]), flavor_})
         diff_flavors = [f for f in new_flavors if f not in old_flavors]
