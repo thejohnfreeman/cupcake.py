@@ -3,126 +3,31 @@ from click_option_group import optgroup
 from contextlib import contextmanager
 import functools
 import hashlib
+import json
 import os
 import pathlib
 import psutil
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
 import tomlkit
 import toolz
 
-from cupcake import confee
-
-# TODO: Make these proper command line > environment > configuration file
-# settings.
-CONAN = os.environ.get('CONAN', 'conan')
-CMAKE = os.environ.get('CMAKE', 'cmake')
-
+from cupcake import cascade, confee
 
 def run(command, *args, **kwargs):
-    print(' '.join(str(arg) for arg in command))
+    print(' '.join(shlex.quote(str(arg)) for arg in command))
     return subprocess.run(command, *args, **kwargs)
 
 def hash_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
-# We want commands to call dependencies,
-# and want them to be able to pass options.
-# That means dependent command must accept all the options of all its
-# dependencies.
-
-class Cupcake:
-    def __init__(self):
-        self.source_dir = pathlib.Path('.').resolve()
-
-    @functools.cache
-    def config(self, name='.cupcake.toml'):
-        path = self.source_dir / name
-        return confee.read(path)
-
-    @functools.cache
-    def build_dir(self, build_dir=None) -> pathlib.Path:
-        """
-        :param build_dir: pretty format of build directory
-        """
-        build_dir = confee.resolve(build_dir, self.config().directory, '.build')
-        build_dir = self.source_dir / build_dir
-        build_dir.mkdir(parents=True, exist_ok=True)
-        return build_dir
-
-    @functools.cache
-    def cache(self, build_dir=None):
-        path = self.build_dir(build_dir) / 'cupcake.toml'
-        return confee.read(path)
-
-    def conan(self, flavor, profile, build_dir=None):
-        """Configure Conan for the given flavor."""
-        # TODO: Accept parameter to choose config.
-        config = self.config()
-        # TODO: Respect `conan config get general.default_profile`.
-        profile = confee.resolve(profile, config.conan.profile, 'default')
-        # TODO: Accept parameter to override settings.
-        # TODO: Find path to profile.
-        profile_path = pathlib.Path.home() / '.conan/profiles' / profile
-        conanfile_path = self.source_dir / 'conanfile.py'
-        if not conanfile_path.exists():
-            conanfile_path = self.source_dir / 'conanfile.txt'
-        if not conanfile_path.exists():
-            return
-        m = hashlib.sha256()
-        m.update(profile_path.read_bytes())
-        m.update(conanfile_path.read_bytes())
-        id = m.hexdigest()
-        cache = self.cache(build_dir)
-        # TODO: Parse and format flavor names between Conan and .cupcake.toml.
-        old_flavors = cache.conan.flavors([])
-        new_flavors = list(set([*config.flavors([]), flavor]))
-        diff_flavors = [f for f in new_flavors if f not in old_flavors]
-        conan_dir = self.build_dir(build_dir) / 'conan'
-        # TODO: Find layout.
-        toolchain_path = conan_dir / 'conan_toolchain.cmake'
-        if cache.conan:
-            if cache.conan.id() == id:
-                if not diff_flavors:
-                    return toolchain_path
-            else:
-                shutil.rmtree(conan_dir, ignore_errors=True)
-        conan_dir.mkdir(parents=True, exist_ok=True)
-        base_command = [
-            CONAN, 'install', self.source_dir, '--build', 'missing',
-            '--output-folder', conan_dir,
-            '--profile:build', profile, '--profile:host', profile,
-        ]
-        for flavor in diff_flavors:
-            run(
-                [*base_command, '--settings', f'build_type={flavor}'],
-                cwd=conan_dir,
-            )
-        cache.conan.id = id
-        cache.conan.flavors = new_flavors
-        config.flavors = new_flavors
-        confee.write(config)
-        confee.write(cache)
-        return toolchain_path
-
-    def clean(self, build_dir=None):
-        # TODO: Separate construction of build directory from its name
-        # calculation.
-        shutil.rmtree(self.build_dir(build_dir), ignore_errors=True)
-
-
-cupcake = Cupcake()
-
-
-@click.group(context_settings={
-    'help_option_names': ('--help', '-h'),
-    'auto_envvar_prefix': 'CUPCAKE',
-})
-def main():
-    pass
-
+# TODO: Make these proper command line > environment > configuration file
+# settings.
+CONAN = os.environ.get('CONAN', 'conan')
+CMAKE = os.environ.get('CMAKE', 'cmake')
 
 # Build flavor is selected at build time.
 # Configuration commands take a set of possible flavors.
@@ -133,19 +38,228 @@ FLAVORS = {
     'debug': 'Debug',
 }
 
-# TODO: Take a settings parameter.
-# TODO: Take a conanfile parameter?
-@main.command()
-@click.option(
-    '--flavor',
-    type=click.Choice(FLAVORS.keys()),
-    default='release',
-    show_default=True,
-    callback=lambda ctx, param, value: FLAVORS[value],
-)
-def conan(flavor, profile=None):
-    cupcake.conan(flavor, profile)
+# TODO: Turn this into a builder.
+class CMake:
+    @staticmethod
+    def is_multi_config(generator):
+        with tempfile.TemporaryDirectory() as cmake_dir:
+            api_dir = cmake_dir / '.cmake/api/v1'
+            query_dir = api_dir / 'query'
+            query_dir.mkdir(parents=True)
+            (query_dir / 'cmakeFiles-v1').touch()
+            source_dir = None
+            CMake.configure(cmake_dir, source_dir_, generator)
+            reply_dir = api_dir / 'reply'
+            # TODO: Handle 0 or >1 matches.
+            # TODO: Use regex to match file name.
+            index_file = next(
+                f for f in reply_dir.iterdir() if f.name.startswith('index-')
+            )
+            index = json.loads(index_file.read_text())
+            multiConfig = index['cmake']['generator']['multiConfig']
+            return multiConfig
 
-@main.command()
-def clean():
-    cupcake.clean()
+    @staticmethod
+    def configure(build_dir, source_dir, generator, variables={}):
+        """
+        source_dir : path-like
+            if relative, must be relative to build_dir
+        """
+        variables = {
+            'CMAKE_EXPORT_COMPILE_COMMANDS': 'ON',
+            **variables,
+        }
+        args = [f'-D{name}={value}' for name, value in variables.items()]
+        args = [*args, source_dir]
+        if generator is not None:
+            args = ['-G', generator, *args]
+        run([CMAKE, *args], cwd=build_dir)
+
+
+# We want commands to call dependencies,
+# and want them to be able to pass options.
+# That means dependent command must accept all the options of all its
+# dependencies.
+
+@cascade.group(context_settings=dict(
+    help_option_names=['--help', '-h'],
+    show_default=True,
+))
+class Cupcake:
+
+    @cascade.value()
+    @cascade.option('--source-dir', '-S', default='.')
+    def source_dir_(self, source_dir):
+        return pathlib.Path(source_dir).resolve()
+
+    @cascade.value()
+    @cascade.option(
+        '--config',
+        default='.cupcake.toml',
+        help='Absolute path or relative to source directory.',
+    )
+    def config_(self, source_dir_, config):
+        path = source_dir_ / config
+        return confee.read(path)
+
+    @cascade.value()
+    @cascade.option('--build-dir', '-B')
+    def build_dir_(self, source_dir_, config_, build_dir) -> pathlib.Path:
+        """
+        :param build_dir: pretty format of build directory
+        """
+        # TODO: Separate construction of build directory from its name
+        # calculation, otherwise `clean` will make it just to destroy it.
+        build_dir = confee.resolve(build_dir, config_.directory, '.build')
+        build_dir = source_dir_ / build_dir
+        build_dir.mkdir(parents=True, exist_ok=True)
+        return build_dir
+
+    @cascade.value()
+    def state_(self, build_dir_):
+        path = build_dir_ / 'cupcake.toml'
+        return confee.read(path)
+
+    @cascade.value()
+    @cascade.option(
+        '--flavor',
+        type=click.Choice(FLAVORS.keys()),
+    )
+    def flavor_(self, config_, flavor):
+        flavor = confee.resolve(flavor, config_.selection, 'release')
+        return flavor
+
+    @cascade.command()
+    @cascade.option('--profile')
+    def conan(self, source_dir_, build_dir_, config_, state_, flavor_, profile):
+        """Configure Conan."""
+        # TODO: Resolve `flavor` against `selection` in config,
+        # but only once and shared by all methods.
+        # Requires cached method for selection, where methods do not have to
+        # worry about passing parameters to dependencies.
+        # TODO: Respect `conan config get general.default_profile`.
+        profile = confee.resolve(profile, config_.conan.profile, 'default')
+        # TODO: Accept parameter to override settings.
+        # TODO: Find path to profile.
+        profile_path = pathlib.Path.home() / '.conan/profiles' / profile
+        conanfile_path = source_dir_ / 'conanfile.py'
+        if not conanfile_path.exists():
+            conanfile_path = source_dir_ / 'conanfile.txt'
+        if not conanfile_path.exists():
+            return
+        m = hashlib.sha256()
+        m.update(profile_path.read_bytes())
+        m.update(conanfile_path.read_bytes())
+        id = m.hexdigest()
+        # TODO: Parse and format flavor names between Conan and .cupcake.toml.
+        old_flavors = state_.conan.flavors([])
+        new_flavors = list({*config_.flavors([]), flavor_})
+        diff_flavors = [f for f in new_flavors if f not in old_flavors]
+        conan_dir = build_dir_ / 'conan'
+        if state_.conan:
+            if state_.conan.id() == id:
+                if not diff_flavors:
+                    return state_.conan
+            else:
+                shutil.rmtree(conan_dir, ignore_errors=True)
+        conan_dir.mkdir(parents=True, exist_ok=True)
+        base_command = [
+            CONAN, 'install', source_dir_, '--build', 'missing',
+            '--output-folder', conan_dir,
+            '--profile:build', profile, '--profile:host', profile,
+        ]
+        for flavor in diff_flavors:
+            run(
+                [*base_command, '--settings', f'build_type={FLAVORS[flavor_]}'],
+                cwd=conan_dir,
+            )
+        # TODO: Find layout.
+        state_.conan.id = id
+        state_.conan.flavors = new_flavors
+        state_.conan.toolchain = str(conan_dir / 'conan_toolchain.cmake')
+        config_.flavors = new_flavors
+        confee.write(config_)
+        confee.write(state_)
+        return state_.conan
+
+    @cascade.command()
+    @cascade.option('--generator', '-G', help='Name of CMake generator.')
+    def cmake(
+            self,
+            source_dir_,
+            config_,
+            build_dir_,
+            state_,
+            flavor_,
+            conan,
+            generator,
+    ):
+        """Configure CMake."""
+        generator = confee.resolve(generator, config_.cmake.generator, None)
+        # TODO: Convenience API for hashing identities.
+        m = hashlib.sha256()
+        m.update(conan.id().encode())
+        # TODO: Calculate ID from all files read during configuration.
+        m.update(pathlib.Path('CMakeLists.txt').read_bytes())
+        if generator is not None:
+            m.update(generator.encode())
+        id = m.hexdigest()
+        old_flavors = state_.cmake.flavors([])
+        cmake_dir = build_dir_ / 'cmake'
+        if state_.cmake:
+            if state_.cmake.id() == id:
+                if flavor_ in old_flavors:
+                    return state_.cmake
+                print('here')
+                if not state_.cmake.multiConfig():
+                    cmake_dir = cmake_dir / flavor_
+                    cmake_dir.mkdir()
+                    CMake.configure(cmake_dir, source_dir_, generator, {
+                        'CMAKE_TOOLCHAIN_FILE:FILEPATH': conan.toolchain(),
+                        'CMAKE_BUILD_TYPE': FLAVORS[flavor_],
+                    })
+                    state_.cmake.flavors = [*old_flavors, flavor_]
+                    confee.write(state_)
+                    return state_.cmake
+        # Once CMake is configured, its binary directory cannot be moved, but
+        # our choice of binary directory depends on whether the generator is
+        # multi-config. We first configure a tiny project in a temporary
+        # directory to find out whether the generator is multi-config. 
+        multiConfig = CMake.is_multi_config(generator)
+        if not multiConfig:
+            cmake_dir /= flavor_
+        shutil.rmtree(cmake_dir, ignore_errors=True)
+        # This directory should not yet exist, but its parent should
+        cmake_dir.mkdir()
+        CMake.configure(cmake_dir, source_dir_, generator, {
+            'CMAKE_TOOLCHAIN_FILE:FILEPATH': conan.toolchain(),
+            'CMAKE_BUILD_TYPE': FLAVORS[flavor_],
+            'CMAKE_CONFIGURATION_TYPES': ';'.join(conan.flavors()),
+        })
+        state_.cmake.id = id
+        state_.cmake.multiConfig = multiConfig
+        state_.cmake.flavors = conan.flavors() if multiConfig else [flavor_]
+        confee.write(config_)
+        confee.write(state_)
+        return state_.cmake
+
+    @cascade.command()
+    @cascade.option('--jobs', '-j')
+    def build(self, build_dir_, flavor_, cmake, jobs):
+        build_dir_ /= 'cmake'
+        if not cmake.multiConfig():
+            build_dir_ /= flavor_
+        command = [
+            CMAKE, '--build', build_dir_, '--config', FLAVORS[flavor_],
+            '--parallel'
+        ]
+        if jobs is not None:
+            command.append(jobs)
+        run(command)
+
+    @cascade.command()
+    def clean(self, build_dir_):
+        """Remove the build directory."""
+        shutil.rmtree(build_dir_, ignore_errors=True)
+
+Cupcake()
