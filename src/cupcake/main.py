@@ -3,6 +3,7 @@ from click_option_group import optgroup
 from contextlib import contextmanager
 import functools
 import hashlib
+from importlib import resources
 import json
 import os
 import pathlib
@@ -43,12 +44,18 @@ class CMake:
     @staticmethod
     def is_multi_config(generator):
         with tempfile.TemporaryDirectory() as cmake_dir:
+            cmake_dir = pathlib.Path(cmake_dir)
             api_dir = cmake_dir / '.cmake/api/v1'
             query_dir = api_dir / 'query'
             query_dir.mkdir(parents=True)
             (query_dir / 'cmakeFiles-v1').touch()
-            source_dir = None
-            CMake.configure(cmake_dir, source_dir_, generator)
+            source_dir = resources.as_file(
+                resources.files('cupcake')
+                .joinpath('data')
+                .joinpath('query')
+            )
+            with source_dir as source_dir:
+                CMake.configure(cmake_dir, source_dir, generator)
             reply_dir = api_dir / 'reply'
             # TODO: Handle 0 or >1 matches.
             # TODO: Use regex to match file name.
@@ -229,8 +236,8 @@ class Cupcake:
         if not multiConfig:
             cmake_dir /= flavor_
         shutil.rmtree(cmake_dir, ignore_errors=True)
-        # This directory should not yet exist, but its parent should
-        cmake_dir.mkdir()
+        # This directory should not yet exist.
+        cmake_dir.mkdir(parents=True)
         CMake.configure(cmake_dir, source_dir_, generator, {
             'CMAKE_TOOLCHAIN_FILE:FILEPATH': conan.toolchain(),
             'CMAKE_BUILD_TYPE': FLAVORS[flavor_],
