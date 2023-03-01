@@ -183,10 +183,15 @@ class Cupcake:
                 [*base_command, '--settings', f'build_type={FLAVORS[flavor_]}'],
                 cwd=conan_dir,
             )
-        # TODO: Find layout.
         state_.conan.id = id
         state_.conan.flavors = new_flavors
-        state_.conan.toolchain = str(conan_dir / 'conan_toolchain.cmake')
+        # TODO: Find layout. How?
+        toolchain = conan_dir / 'conan_toolchain.cmake'
+        if not toolchain.exists():
+            toolchain = conan_dir / 'build' / 'generators' / 'conan_toolchain.cmake'
+        if not toolchain.exists():
+            raise Exception('cannot find toolchain file')
+        state_.conan.toolchain = str(toolchain)
         config_.flavors = new_flavors
         confee.write(config_)
         confee.write(state_)
