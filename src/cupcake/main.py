@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import functools
 import hashlib
 from importlib import resources
+import jinja2
 import json
 import os
 import pathlib
@@ -81,6 +82,12 @@ class CMake:
         if generator is not None:
             args = ['-G', generator, *args]
         run([CMAKE, *args], cwd=build_dir)
+
+test_template = """
+{{ cmake }} --build {{ cmakeDir }}
+{% if multiConfig %} --config {{ flavor }} {% endif %}
+--target {% if multiConfig %} RUN_TESTS {% else %} test {% endif %}
+"""
 
 
 # We want commands to call dependencies,
@@ -279,15 +286,18 @@ class Cupcake:
         return cmake
 
     @cascade.command()
-    def test(self, cmake_dir_, flavor_, cmake):
+    def test(self, config_, cmake_dir_, flavor_, cmake):
         """Test the selected flavor."""
-        args = []
-        if cmake.multiConfig():
-            target = 'RUN_TESTS'
-            args.extend(['--config', FLAVORS[flavor_]])
-        else:
-            target = 'test'
-        run([CMAKE, '--build', cmake_dir_, *args, '--target', target])
+        template = confee.resolve(None, config_.scripts.test, test_template)
+        template = jinja2.Template(template)
+        context = {
+            'cmake': CMAKE,
+            'cmakeDir': cmake_dir_,
+            'multiConfig': cmake.multiConfig(),
+            'flavor': FLAVORS[flavor_],
+        }
+        command = shlex.split(template.render(**context))
+        run(command)
 
     @cascade.command()
     @cascade.argument('query')
