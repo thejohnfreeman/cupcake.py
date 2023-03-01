@@ -19,6 +19,7 @@ import toolz
 from cupcake import cascade, confee
 
 def run(command, *args, **kwargs):
+    # TODO: Print this in a special color.
     print(' '.join(shlex.quote(str(arg)) for arg in command))
     return subprocess.run(command, *args, **kwargs)
 
@@ -251,20 +252,40 @@ class Cupcake:
         confee.write(state_)
         return state_.cmake
 
-    @cascade.command()
-    @cascade.option('--jobs', '-j')
-    def build(self, build_dir_, flavor_, cmake, jobs):
+    @cascade.value()
+    def cmake_dir_(self, build_dir_, flavor_, cmake):
         build_dir_ /= 'cmake'
         if not cmake.multiConfig():
             build_dir_ /= flavor_
-        command = [
-            CMAKE, '--build', build_dir_, '--config', FLAVORS[flavor_],
-            '--verbose',
-            '--parallel',
-        ]
+        return build_dir_
+
+    @cascade.command()
+    @cascade.option('--jobs', '-j')
+    def build(self, cmake_dir_, flavor_, cmake, jobs):
+        args = ['--verbose']
+        if cmake.multiConfig():
+            args.extend(['--config', FLAVORS[flavor_]])
+        args.append('--parallel')
         if jobs is not None:
-            command.append(jobs)
-        run(command)
+            args.append(jobs)
+        run([CMAKE, '--build', cmake_dir_, *args])
+        return cmake
+
+    @cascade.command()
+    def test(self, cmake_dir_, flavor_, cmake):
+        args = []
+        if cmake.multiConfig():
+            target = 'RUN_TESTS'
+            args.extend(['--config', FLAVORS[flavor_]])
+        else:
+            target = 'test'
+        run([CMAKE, '--build', cmake_dir_, *args, '--target', target])
+
+    @cascade.command()
+    @cascade.argument('query')
+    def search(self, query):
+        """Search for packages."""
+        run([CONAN, 'search', '--remote', 'all', query])
 
     @cascade.command()
     def clean(self, build_dir_):

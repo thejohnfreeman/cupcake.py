@@ -118,6 +118,14 @@ def option(*args, **kwargs):
         return method
     return decorator
 
+def argument(*args, **kwargs):
+    def decorator(method):
+        inner = getattr(method, 'cascade.parameters', identity)
+        outer = compose(click.argument(*args, **kwargs), inner)
+        setattr(method, 'cascade.parameters', outer)
+        return method
+    return decorator
+
 def value():
     def decorator(method):
         setattr(method, 'cascade.value', True)
