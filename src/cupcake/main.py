@@ -332,7 +332,8 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
-    def new(self, path):
+    @cascade.option('--license', default='ISC')
+    def new(self, path, license):
         """Create a new project."""
         loader = jinja2.PackageLoader('cupcake', 'data/new')
         env = jinja2.Environment(loader=loader, keep_trailing_newline=True)
@@ -341,7 +342,7 @@ class Cupcake:
         # $ git config user.name
         # $ git config user.email
         context = dict(
-            license='ISC',
+            license=license,
             author='John Freeman <jfreeman08@gmail.com>',
             github='thejohnfreeman',
         )
