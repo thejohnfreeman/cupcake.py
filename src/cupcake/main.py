@@ -36,6 +36,8 @@ FLAVORS = {
     'debug': 'Debug',
 }
 
+PATTERN_INDEX_FILENAME = re.compile(r'^index-.*\.json$')
+
 class CMake:
     def __init__(self, CMAKE):
         self.CMAKE = CMAKE
@@ -56,9 +58,9 @@ class CMake:
                 self.configure(cmake_dir, source_dir, generator)
             reply_dir = api_dir / 'reply'
             # TODO: Handle 0 or >1 matches.
-            # TODO: Use regex to match file name.
             index_file = next(
-                f for f in reply_dir.iterdir() if f.name.startswith('index-')
+                f for f in reply_dir.iterdir()
+                if PATTERN_INDEX_FILENAME.match(f.name)
             )
             index = json.loads(index_file.read_text())
             multiConfig = index['cmake']['generator']['multiConfig']
