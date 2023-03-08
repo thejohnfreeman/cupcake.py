@@ -27,11 +27,6 @@ def run(command, *args, **kwargs):
 def hash_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
-# TODO: Make these proper command line > environment > configuration file
-# settings.
-CONAN = os.environ.get('CONAN', 'conan')
-CMAKE = os.environ.get('CMAKE', 'cmake')
-
 # Build flavor is selected at build time.
 # Configuration commands take a set of possible flavors.
 
@@ -42,8 +37,10 @@ FLAVORS = {
 }
 
 class CMake:
-    @staticmethod
-    def is_multi_config(generator):
+    def __init__(self, CMAKE):
+        self.CMAKE = CMAKE
+
+    def is_multi_config(self, generator):
         with tempfile.TemporaryDirectory() as cmake_dir:
             cmake_dir = pathlib.Path(cmake_dir)
             api_dir = cmake_dir / '.cmake/api/v1'
@@ -56,7 +53,7 @@ class CMake:
                 .joinpath('query')
             )
             with source_dir as source_dir:
-                CMake.configure(cmake_dir, source_dir, generator)
+                self.configure(cmake_dir, source_dir, generator)
             reply_dir = api_dir / 'reply'
             # TODO: Handle 0 or >1 matches.
             # TODO: Use regex to match file name.
@@ -67,8 +64,7 @@ class CMake:
             multiConfig = index['cmake']['generator']['multiConfig']
             return multiConfig
 
-    @staticmethod
-    def configure(build_dir, source_dir, generator, variables={}):
+    def configure(self, build_dir, source_dir, generator, variables={}):
         """
         source_dir : path-like
             if relative, must be relative to build_dir
@@ -81,7 +77,7 @@ class CMake:
         args = [*args, source_dir]
         if generator is not None:
             args = ['-G', generator, *args]
-        run([CMAKE, *args], cwd=build_dir)
+        run([self.CMAKE, *args], cwd=build_dir)
 
 test_template = """
 {{ cmake }} --build {{ cmakeDir }}
@@ -115,6 +111,15 @@ class Cupcake:
     def config_(self, source_dir_, config):
         path = source_dir_ / config
         return confee.read(path)
+
+    @cascade.value()
+    def CONAN(self, config_):
+        # TODO: Enable overrides from environment.
+        return confee.resolve(None, config_.CONAN, 'conan')
+
+    @cascade.value()
+    def CMAKE(self, config_):
+        return confee.resolve(None, config_.CMAKE, 'cmake')
 
     @cascade.value()
     @cascade.option('--build-dir', '-B')
@@ -153,7 +158,7 @@ class Cupcake:
     @cascade.command()
     @cascade.option('--profile')
     # TODO: Add option to configure shared linkage.
-    def conan(self, source_dir_, build_dir_, config_, state_, flavor_, profile):
+    def conan(self, source_dir_, build_dir_, config_, CONAN, state_, flavor_, profile):
         """Configure Conan."""
         # TODO: Respect `conan config get general.default_profile`.
         profile = confee.resolve(profile, config_.conan.profile, 'default')
@@ -210,6 +215,7 @@ class Cupcake:
             self,
             source_dir_,
             config_,
+            CMAKE,
             build_dir_,
             state_,
             flavor_,
@@ -256,7 +262,7 @@ class Cupcake:
             # generator is multi-config.
             # We first configure a tiny project in a temporary directory to
             # find out whether the generator is multi-config. 
-            multiConfig = CMake.is_multi_config(generator)
+            multiConfig = CMake(CMAKE).is_multi_config(generator)
         if not multiConfig:
             cmake_dir /= flavor_
         shutil.rmtree(cmake_dir, ignore_errors=True)
@@ -270,7 +276,7 @@ class Cupcake:
             cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(new_flavors)
         else:
             cmake_args['CMAKE_BUILD_TYPE'] = FLAVORS[flavor_]
-        CMake.configure(
+        CMake(CMAKE).configure(
             cmake_dir, source_dir_, generator, cmake_args
         )
         state_.cmake.id = id
@@ -289,7 +295,7 @@ class Cupcake:
 
     @cascade.command()
     @cascade.option('--jobs', '-j')
-    def build(self, cmake_dir_, flavor_, cmake, jobs):
+    def build(self, CMAKE, cmake_dir_, flavor_, cmake, jobs):
         """Build the selected flavor."""
         args = ['--verbose']
         if cmake.multiConfig():
@@ -302,14 +308,14 @@ class Cupcake:
 
     @cascade.command()
     @cascade.option('--prefix', help='Installation prefix.')
-    def install(self, config_, cmake_dir_, build, prefix):
+    def install(self, config_, CMAKE, cmake_dir_, build, prefix):
         prefix = confee.resolve(prefix, config_.scripts.test, '.install')
         prefix = pathlib.Path('.') / prefix
         prefix = prefix.resolve()
         run([CMAKE, '--install', cmake_dir_, '--prefix', prefix])
 
     @cascade.command()
-    def test(self, config_, cmake_dir_, flavor_, cmake):
+    def test(self, config_, CMAKE, cmake_dir_, flavor_, cmake):
         """Test the selected flavor."""
         template = confee.resolve(None, config_.scripts.test, test_template)
         template = jinja2.Template(template)
@@ -352,7 +358,7 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('query')
-    def search(self, query):
+    def search(self, CONAN, query):
         """Search for packages."""
         run([CONAN, 'search', '--remote', 'all', query])
 
