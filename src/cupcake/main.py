@@ -220,46 +220,62 @@ class Cupcake:
         generator = confee.resolve(generator, config_.cmake.generator, None)
         # TODO: Convenience API for hashing identities.
         m = hashlib.sha256()
-        m.update(conan.id().encode())
+        if conan is not None:
+            m.update(conan.id().encode())
         # TODO: Calculate ID from all files read during configuration.
         m.update(pathlib.Path('CMakeLists.txt').read_bytes())
         if generator is not None:
             m.update(generator.encode())
         id = m.hexdigest()
-        old_flavors = state_.cmake.flavors([])
+        # We need to know what flavors are configured in CMake after this
+        # step.
+        # If we find that the generator is single-config and the CMake state
+        # ID is the same, then we can add the new flavor to the existing
+        # CMake state flavors.
+        # If we find that the generator is multi-config, then we'll use all
+        # the configured flavors (which matches the Conan state flavors).
+        # Otherwise, the generator is single-config and the CMake state ID is
+        # different, so only the new flavor is valid.
+        # We start with that assumption, and change the value only when
+        # we can prove one of the above conditions.
+        new_flavors = [flavor_]
         cmake_dir = build_dir_ / 'cmake'
         if state_.cmake:
+            old_flavors = state_.cmake.flavors([])
+            multiConfig = state_.cmake.multiConfig()
             if state_.cmake.id() == id:
                 if flavor_ in old_flavors:
                     return state_.cmake
-                if not state_.cmake.multiConfig():
-                    cmake_dir = cmake_dir / flavor_
-                    cmake_dir.mkdir()
-                    CMake.configure(cmake_dir, source_dir_, generator, {
-                        'CMAKE_TOOLCHAIN_FILE:FILEPATH': conan.toolchain(),
-                        'CMAKE_BUILD_TYPE': FLAVORS[flavor_],
-                    })
-                    state_.cmake.flavors = [*old_flavors, flavor_]
-                    confee.write(state_)
-                    return state_.cmake
-        # Once CMake is configured, its binary directory cannot be moved, but
-        # our choice of binary directory depends on whether the generator is
-        # multi-config. We first configure a tiny project in a temporary
-        # directory to find out whether the generator is multi-config. 
-        multiConfig = CMake.is_multi_config(generator)
+                if not multiConfig:
+                    # We're going to configure an additional single-config
+                    # build directory. The others are not invalidated.
+                    new_flavors = [*old_flavors, flavor_]
+        else:
+            # Once CMake is configured, its binary directory cannot be moved,
+            # but our choice of binary directory depends on whether the
+            # generator is multi-config.
+            # We first configure a tiny project in a temporary directory to
+            # find out whether the generator is multi-config. 
+            multiConfig = CMake.is_multi_config(generator)
         if not multiConfig:
             cmake_dir /= flavor_
         shutil.rmtree(cmake_dir, ignore_errors=True)
-        # This directory should not yet exist.
+        # This directory should not yet exist, but its parent might.
         cmake_dir.mkdir(parents=True)
-        CMake.configure(cmake_dir, source_dir_, generator, {
-            'CMAKE_TOOLCHAIN_FILE:FILEPATH': conan.toolchain(),
-            'CMAKE_BUILD_TYPE': FLAVORS[flavor_],
-            'CMAKE_CONFIGURATION_TYPES': ';'.join(conan.flavors()),
-        })
+        cmake_args = {}
+        if conan is not None:
+            cmake_args['CMAKE_TOOLCHAIN_FILE:FILEPATH'] = conan.toolchain()
+        if multiConfig:
+            new_flavors = config_.flavors()
+            cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(new_flavors)
+        else:
+            cmake_args['CMAKE_BUILD_TYPE'] = FLAVORS[flavor_]
+        CMake.configure(
+            cmake_dir, source_dir_, generator, cmake_args
+        )
         state_.cmake.id = id
         state_.cmake.multiConfig = multiConfig
-        state_.cmake.flavors = conan.flavors() if multiConfig else [flavor_]
+        state_.cmake.flavors = new_flavors
         confee.write(config_)
         confee.write(state_)
         return state_.cmake
