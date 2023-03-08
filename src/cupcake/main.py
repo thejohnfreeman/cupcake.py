@@ -301,6 +301,14 @@ class Cupcake:
         return cmake
 
     @cascade.command()
+    @cascade.option('--prefix', help='Installation prefix.')
+    def install(self, config_, cmake_dir_, build, prefix):
+        prefix = confee.resolve(prefix, config_.scripts.test, '.install')
+        prefix = pathlib.Path('.') / prefix
+        prefix = prefix.resolve()
+        run([CMAKE, '--install', cmake_dir_, '--prefix', prefix])
+
+    @cascade.command()
     def test(self, config_, cmake_dir_, flavor_, cmake):
         """Test the selected flavor."""
         template = confee.resolve(None, config_.scripts.test, test_template)
