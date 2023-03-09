@@ -11,9 +11,7 @@ cupcake = 'cupcake.main:main'
 [tool.poetry.dependencies]
 python = "^3.8"
 click = "^8.0.4"
-psutil = "^5.9.0"
 click-option-group = "^0.5.3"
-toolz = "^0.11.2"
 tomlkit = "^0.10.1"
 jinja2 = "^3.1.1"
 
