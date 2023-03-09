@@ -7,9 +7,11 @@ from importlib import resources
 import itertools
 import jinja2
 import json
+import libcst as cst
 import os
 import pathlib
 import re
+import semver
 import shlex
 import shutil
 import subprocess
@@ -24,6 +26,11 @@ def run(command, *args, **kwargs):
 
 def hash_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def max_by(compare):
+    def function(x, y):
+        return y if compare(x, y) < 0 else x
+    return function
 
 # Build flavor is selected at build time.
 # Configuration commands take a set of possible flavors.
@@ -85,6 +92,54 @@ test_template = """
 --target {% if multiConfig %} RUN_TESTS {% else %} test {% endif %}
 """
 
+def cstNewLine(indent=''):
+    return cst.ParenthesizedWhitespace(
+        indent=True,
+        last_line=cst.SimpleWhitespace(indent),
+    )
+
+class AddRequirement(cst.CSTTransformer):
+
+    def __init__(self, name, version):
+        self.name = name
+        self.version = version
+
+    def leave_Assign(self, old, new):
+        import libcst.matchers as m
+        if len(new.targets) != 1:
+            return new
+        if not m.matches(new.targets[0].target, m.Name('requires')):
+            return new
+        if not m.matches(
+            new.value,
+            (m.List | m.Set | m.Tuple)(
+                elements=[m.ZeroOrMore(m.Element(value=m.SimpleString()))]
+            )
+        ):
+            raise SystemExit('requirements is not a list of strings')
+        matches = [
+            re.match(r'^[\'"]([^/]+)/(.*)[\'"]$', e.value.value)
+            for e in new.value.elements
+        ]
+        ids = {match.group(1): match.group(2) for match in matches}
+        if self.name not in ids:
+            ids[self.name] = self.version
+        ids = [f'{k}/{v}' for k, v in ids.items()]
+        ids = sorted(ids)
+        elements = [
+            cst.Element(
+                value=cst.SimpleString(f"'{id}'"),
+                comma=cst.Comma(whitespace_after=cstNewLine('    ')),
+            ) for id in ids
+        ]
+        elements[-1] = cst.Element(value=elements[-1].value, comma=cst.Comma())
+        return new.with_changes(
+            value=new.value.with_changes(
+                elements=elements,
+                lbracket=cst.LeftSquareBracket(whitespace_after=cstNewLine('    ')),
+                rbracket=cst.RightSquareBracket(whitespace_before=cstNewLine()),
+            )
+        )
 
 # We want commands to call dependencies,
 # and want them to be able to pass options.
@@ -378,7 +433,36 @@ class Cupcake:
     @cascade.argument('query')
     def search(self, CONAN, query):
         """Search for packages."""
+        # TODO: Search local cache too?
         run([CONAN, 'search', '--remote', 'all', query])
+
+    @cascade.command()
+    @cascade.argument('package')
+    def add(self, CONAN, conanfile_path_, package):
+        """Add a requirement."""
+        # TODO: Look into Conan Python API. Currently undocumented.
+        with tempfile.NamedTemporaryFile(mode='r') as file:
+            run([CONAN, 'search', '--remote', 'all', '--json', file.name, package])
+            results = json.load(file)
+        ids = [
+            x['recipe']['id']
+            for remote in results['results']
+            for x in remote['items']
+        ]
+        # Maximum version seems to be at the end,
+        # but I'm not sure we can rely on that.
+        pattern = re.compile(f'{package}/(.+)')
+        versions = [pattern.match(id).group(1) for id in ids]
+        # TODO: Implement version constraints like Python.
+        # Use them to filter list before selecting maximum.
+        version = functools.reduce(max_by(semver.compare), versions)
+        # TODO: Add --upgrade option.
+        with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
+            tree = cst.parse_module(conanfile_path_.read_bytes())
+            tree = tree.visit(AddRequirement(package, version))
+            recipe_out.write(tree.code)
+            recipe_out.flush()
+            shutil.copy(recipe_out.name, conanfile_path_)
 
     @cascade.command()
     def clean(self, build_dir_path_):
