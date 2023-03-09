@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import functools
 import hashlib
 from importlib import resources
+import itertools
 import jinja2
 import json
 import os
@@ -154,24 +155,40 @@ class Cupcake:
         flavor = confee.resolve(flavor, config_.selection, 'release')
         return flavor
 
-    @cascade.command()
-    @cascade.option('--profile')
-    # TODO: Add option to configure shared linkage.
-    def conan(self, source_dir_, build_dir_, config_, CONAN, state_, flavor_, profile):
-        """Configure Conan."""
-        # TODO: Respect `conan config get general.default_profile`.
-        profile = confee.resolve(profile, config_.conan.profile, 'default')
-        # TODO: Accept parameter to override settings.
-        # TODO: Find path to profile.
-        profile_path = pathlib.Path.home() / '.conan/profiles' / profile
+    @cascade.value()
+    def conanfile_path_(self, source_dir_):
         conanfile_path = source_dir_ / 'conanfile.py'
         if not conanfile_path.exists():
             conanfile_path = source_dir_ / 'conanfile.txt'
         if not conanfile_path.exists():
             return
+        return conanfile_path
+
+    @cascade.command()
+    @cascade.option('--profile')
+    # TODO: Add option to configure shared linkage.
+    def conan(
+        self,
+        source_dir_,
+        conanfile_path_,
+        build_dir_,
+        config_,
+        CONAN,
+        state_,
+        flavor_,
+        profile,
+    ):
+        """Configure Conan."""
+        if not conanfile_path_:
+            return
+        # TODO: Respect `conan config get general.default_profile`.
+        profile = confee.resolve(profile, config_.conan.profile, 'default')
+        # TODO: Accept parameter to override settings.
+        # TODO: Find path to profile.
+        profile_path = pathlib.Path.home() / '.conan/profiles' / profile
         m = hashlib.sha256()
         m.update(profile_path.read_bytes())
-        m.update(conanfile_path.read_bytes())
+        m.update(conanfile_path_.read_bytes())
         id = m.hexdigest()
         old_flavors = state_.conan.flavors([])
         new_flavors = list({*config_.flavors([]), flavor_})
@@ -183,6 +200,7 @@ class Cupcake:
                     return state_.conan
             else:
                 shutil.rmtree(conan_dir, ignore_errors=True)
+                diff_flavors = new_flavors
         conan_dir.mkdir(parents=True, exist_ok=True)
         base_command = [
             CONAN, 'install', source_dir_, '--build', 'missing',
