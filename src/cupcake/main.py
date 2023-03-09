@@ -225,6 +225,10 @@ class Cupcake:
         flavor = confee.resolve(flavor, config_.selection, 'release')
         return flavor
 
+    @cascade.command()
+    def select(self, flavor_):
+        """Select a flavor."""
+
     @cascade.value()
     def conanfile_path_(self, source_dir_):
         conanfile_path = source_dir_ / 'conanfile.py'
