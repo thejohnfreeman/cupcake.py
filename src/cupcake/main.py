@@ -98,11 +98,7 @@ def cstNewLine(indent=''):
         last_line=cst.SimpleWhitespace(indent),
     )
 
-class AddRequirement(cst.CSTTransformer):
-
-    def __init__(self, name, version):
-        self.name = name
-        self.version = version
+class ChangeRequirements(cst.CSTTransformer):
 
     def leave_Assign(self, old, new):
         import libcst.matchers as m
@@ -122,8 +118,7 @@ class AddRequirement(cst.CSTTransformer):
             for e in new.value.elements
         ]
         ids = {match.group(1): match.group(2) for match in matches}
-        if self.name not in ids:
-            ids[self.name] = self.version
+        ids = self.change_(ids)
         ids = [f'{k}/{v}' for k, v in ids.items()]
         ids = sorted(ids)
         elements = [
@@ -140,6 +135,26 @@ class AddRequirement(cst.CSTTransformer):
                 rbracket=cst.RightSquareBracket(whitespace_before=cstNewLine()),
             )
         )
+
+class AddRequirement(ChangeRequirements):
+
+    def __init__(self, name, version):
+        self.name = name
+        self.version = version
+
+    def change_(self, ids):
+        if self.name not in ids:
+            ids[self.name] = self.version
+        return ids
+
+class RemoveRequirement(ChangeRequirements):
+
+    def __init__(self, name):
+        self.name = name
+
+    def change_(self, ids):
+        ids.pop(self.name, None)
+        return ids
 
 # We want commands to call dependencies,
 # and want them to be able to pass options.
@@ -380,11 +395,20 @@ class Cupcake:
 
     @cascade.command()
     @cascade.option('--prefix', help='Installation prefix.')
-    def install(self, config_, CMAKE, cmake_dir_, build, prefix):
+    def install(self, config_, CMAKE, cmake_dir_, flavor_, build, prefix):
+        """Install the selected flavor."""
         prefix = confee.resolve(prefix, config_.scripts.test, '.install')
         prefix = pathlib.Path('.') / prefix
         prefix = prefix.resolve()
-        run([CMAKE, '--install', cmake_dir_, '--prefix', prefix])
+        run([
+            CMAKE,
+            '--install',
+            cmake_dir_,
+            '--config',
+            FLAVORS[flavor_],
+            '--prefix',
+            prefix,
+        ])
 
     @cascade.command()
     def test(self, config_, CMAKE, cmake_dir_, flavor_, cmake):
@@ -440,6 +464,9 @@ class Cupcake:
     @cascade.argument('package')
     def add(self, CONAN, conanfile_path_, package):
         """Add a requirement."""
+        # TODO: Support conanfile.txt.
+        if conanfile_path_.name != 'conanfile.py':
+            raise SystemExit('missing conanfile.py')
         # TODO: Look into Conan Python API. Currently undocumented.
         with tempfile.NamedTemporaryFile(mode='r') as file:
             run([CONAN, 'search', '--remote', 'all', '--json', file.name, package])
@@ -460,6 +487,20 @@ class Cupcake:
         with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
             tree = cst.parse_module(conanfile_path_.read_bytes())
             tree = tree.visit(AddRequirement(package, version))
+            recipe_out.write(tree.code)
+            recipe_out.flush()
+            shutil.copy(recipe_out.name, conanfile_path_)
+
+    @cascade.command()
+    @cascade.argument('package')
+    def remove(self, conanfile_path_, package):
+        """Remove a requirement."""
+        # TODO: Support conanfile.txt.
+        if conanfile_path_.name != 'conanfile.py':
+            raise SystemExit('missing conanfile.py')
+        with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
+            tree = cst.parse_module(conanfile_path_.read_bytes())
+            tree = tree.visit(RemoveRequirement(package))
             recipe_out.write(tree.code)
             recipe_out.flush()
             shutil.copy(recipe_out.name, conanfile_path_)
