@@ -1,4 +1,5 @@
-from conans import ConanFile, CMake
+from conan import ConanFile
+from conan.tools.cmake import CMake
 
 class {{ name | capitalize }}(ConanFile):
     name = '{{ name }}'

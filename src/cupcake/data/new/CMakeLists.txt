@@ -14,12 +14,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-cupcake_find_package(doctest 2.4 PRIVATE)
-
 cupcake_add_library({{ name }})
 
 cupcake_add_executable({{ name }})
-target_link_libraries(${this} {{ name }}::lib{{ name }})
+target_link_libraries(${this} PRIVATE {{ name }}::lib{{ name }})
 
 cupcake_add_tests()
 
