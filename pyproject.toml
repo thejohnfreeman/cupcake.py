@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cupcake"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cargo for C++"
 authors = ["John Freeman <jfreeman08@gmail.com>"]
 packages = [{include = "cupcake", from = "src"}]
