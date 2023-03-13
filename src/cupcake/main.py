@@ -401,7 +401,7 @@ class Cupcake:
     @cascade.option('--prefix', help='Installation prefix.')
     def install(self, config_, CMAKE, cmake_dir_, flavor_, build, prefix):
         """Install the selected flavor."""
-        prefix = confee.resolve(prefix, config_.scripts.test, '.install')
+        prefix = confee.resolve(prefix, config_.prefix, '.install')
         prefix = pathlib.Path('.') / prefix
         prefix = prefix.resolve()
         run([
