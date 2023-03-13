@@ -35,6 +35,7 @@ class Middle:
 def group(*args, **kwargs):
     def decorator(klass):
         @click.group(*args, **kwargs)
+        @click.version_option()
         def group():
             pass
 
