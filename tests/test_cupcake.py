@@ -68,3 +68,12 @@ def test_two(install_dir, package_two):
     assert subprocess.check_output(
         [install_dir / 'bin' / 'goodbye']
     ) == b'goodbye!\n'
+
+@pytest.fixture
+def package_three(project_template_cpp, install_dir, package_one):
+    install(project_template_cpp / '03-fp-fp', install_dir)
+
+def test_three(install_dir, package_three):
+    assert subprocess.check_output(
+        [install_dir / 'bin' / 'aloha']
+    ) == b'aloha!\n'
