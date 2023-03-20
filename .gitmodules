@@ -1,0 +1,3 @@
+[submodule "submodules/project-template-cpp"]
+	path = submodules/project-template-cpp
+	url = https://github.com/thejohnfreeman/project-template-cpp.git

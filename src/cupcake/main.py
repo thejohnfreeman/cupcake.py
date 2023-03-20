@@ -309,6 +309,11 @@ class Cupcake:
 
     @cascade.command()
     @cascade.option('--generator', '-G', help='Name of CMake generator.')
+    @cascade.option(
+        '-P', 'prefix_paths',
+        help='Prefix to search for installed packages.',
+        multiple=True,
+    )
     def cmake(
             self,
             source_dir_,
@@ -319,6 +324,7 @@ class Cupcake:
             flavor_,
             conan,
             generator,
+            prefix_paths,
     ):
         """Configure CMake."""
         generator = confee.resolve(generator, config_.cmake.generator, None)
@@ -327,9 +333,11 @@ class Cupcake:
         if conan is not None:
             m.update(conan.id().encode())
         # TODO: Calculate ID from all files read during configuration.
-        m.update(pathlib.Path('CMakeLists.txt').read_bytes())
+        m.update((source_dir_ / 'CMakeLists.txt').read_bytes())
         if generator is not None:
             m.update(generator.encode())
+        for p in prefix_paths:
+            m.update(p.encode())
         id = m.hexdigest()
         # We need to know what flavors are configured in CMake after this
         # step.
@@ -369,6 +377,8 @@ class Cupcake:
         cmake_args = {}
         if conan is not None:
             cmake_args['CMAKE_TOOLCHAIN_FILE:FILEPATH'] = conan.toolchain()
+        if prefix_paths:
+            cmake_args['CMAKE_PREFIX_PATH'] = ';'.join(prefix_paths)
         if multiConfig:
             new_flavors = config_.flavors()
             cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(new_flavors)
