@@ -84,3 +84,10 @@ def package_four(project_template_cpp, install_dir, package_two):
 
 def test_four(install_dir, package_four):
     assert subprocess.check_output([install_dir / 'bin' / 'four']) == b'4\n'
+
+@pytest.fixture
+def package_five(project_template_cpp, install_dir):
+    install(project_template_cpp / '05-fetch-content', install_dir)
+
+def test_five(install_dir, package_five):
+    assert subprocess.check_output([install_dir / 'bin' / 'five']) == b'5!\n'

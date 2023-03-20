@@ -22,7 +22,9 @@ from cupcake import cascade, confee
 def run(command, *args, **kwargs):
     # TODO: Print this in a special color.
     print(' '.join(shlex.quote(str(arg)) for arg in command))
-    return subprocess.run(command, *args, **kwargs)
+    proc = subprocess.run(command, *args, **kwargs)
+    proc.check_returncode()
+    return proc
 
 def hash_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
