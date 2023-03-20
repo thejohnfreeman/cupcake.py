@@ -168,7 +168,11 @@ class RemoveRequirement(ChangeRequirements):
 class Cupcake:
 
     @cascade.value()
-    @cascade.option('--source-dir', '-S', default='.')
+    @cascade.option(
+        '--source-dir', '-S',
+        help='Absolute path or relative to current directory.',
+        default='.',
+    )
     def source_dir_(self, source_dir):
         return pathlib.Path(source_dir).resolve()
 
@@ -192,7 +196,10 @@ class Cupcake:
         return confee.resolve(None, config_.CMAKE, 'cmake')
 
     @cascade.value()
-    @cascade.option('--build-dir', '-B')
+    @cascade.option(
+        '--build-dir', '-B',
+        help='Absolute path or relative to source directory.'
+    )
     def build_dir_path_(self, source_dir_, config_, build_dir) -> pathlib.Path:
         """
         :param build_dir: pretty format of build directory
@@ -239,7 +246,7 @@ class Cupcake:
         return conanfile_path
 
     @cascade.command()
-    @cascade.option('--profile')
+    @cascade.option('--profile', help='Name of Conan profile.')
     # TODO: Add option to configure shared linkage.
     def conan(
         self,
