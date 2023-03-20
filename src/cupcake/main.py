@@ -237,6 +237,16 @@ class Cupcake:
         """Select a flavor."""
 
     @cascade.value()
+    @cascade.option(
+        '--prefix', help='Prefix at which to install this package.'
+    )
+    def prefix_(self, config_, source_dir_, prefix):
+        prefix = confee.resolve(prefix, config_.prefix, '.install')
+        prefix = source_dir_ / prefix
+        prefix = prefix.resolve()
+        return prefix
+
+    @cascade.value()
     def conanfile_path_(self, source_dir_):
         conanfile_path = source_dir_ / 'conanfile.py'
         if not conanfile_path.exists():
@@ -322,6 +332,7 @@ class Cupcake:
             build_dir_,
             state_,
             flavor_,
+            prefix_,
             conan,
             generator,
             prefix_paths,
@@ -375,6 +386,7 @@ class Cupcake:
         # This directory should not yet exist, but its parent might.
         cmake_dir.mkdir(parents=True)
         cmake_args = {}
+        cmake_args['CMAKE_INSTALL_PREFIX'] = prefix_
         if conan is not None:
             cmake_args['CMAKE_TOOLCHAIN_FILE:FILEPATH'] = conan.toolchain()
         if prefix_paths:
@@ -402,7 +414,9 @@ class Cupcake:
         return build_dir_
 
     @cascade.command()
-    @cascade.option('--jobs', '-j')
+    @cascade.option(
+        '--jobs', '-j', help='Maximum number of simultaneous jobs.'
+    )
     def build(self, CMAKE, cmake_dir_, flavor_, cmake, jobs):
         """Build the selected flavor."""
         args = ['--verbose']
@@ -415,12 +429,8 @@ class Cupcake:
         return cmake
 
     @cascade.command()
-    @cascade.option('--prefix', help='Installation prefix.')
-    def install(self, config_, CMAKE, cmake_dir_, flavor_, build, prefix):
+    def install(self, CMAKE, cmake_dir_, flavor_, build, prefix_):
         """Install the selected flavor."""
-        prefix = confee.resolve(prefix, config_.prefix, '.install')
-        prefix = pathlib.Path('.') / prefix
-        prefix = prefix.resolve()
         run([
             CMAKE,
             '--install',
@@ -428,7 +438,7 @@ class Cupcake:
             '--config',
             FLAVORS[flavor_],
             '--prefix',
-            prefix,
+            prefix_,
         ])
 
     @cascade.command()

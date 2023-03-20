@@ -1,3 +1,12 @@
+"""
+These tests all use the system Conan and the user's Conan cache.
+Running them in parallel can create race conditions on the cache.
+Be careful.
+"""
+
+# TODO: Create a module-scope, auto-use fixture that builds all Conan
+# dependencies to eliminate any race condition on the cache.
+
 import pathlib
 import pytest
 import subprocess
@@ -10,24 +19,35 @@ def project_template_cpp():
     return root / 'submodules' / 'project-template-cpp'
 
 @pytest.fixture
-def build_dir():
-    with tempfile.TemporaryDirectory() as path:
-        yield pathlib.Path(path)
-
-@pytest.fixture
 def install_dir():
     with tempfile.TemporaryDirectory() as path:
         yield pathlib.Path(path)
 
-def test_zero(project_template_cpp, build_dir, install_dir):
-    subprocess.check_call([
-        'cupcake',
-        'install',
-        '-S',
-        project_template_cpp / '00-upstream',
-        '-B',
-        build_dir,
-        '--prefix',
-        install_dir,
-    ])
+def install(source_dir, install_dir):
+    with tempfile.TemporaryDirectory() as build_dir:
+        subprocess.check_call([
+            'cupcake',
+            'install',
+            '-S',
+            source_dir,
+            '-B',
+            build_dir,
+            '--prefix',
+            install_dir,
+        ])
+
+@pytest.fixture
+def package_zero(project_template_cpp, install_dir):
+    install(project_template_cpp / '00-upstream', install_dir)
+
+def test_zero(install_dir, package_zero):
     assert subprocess.check_output([install_dir / 'bin' / 'true']) == b''
+
+@pytest.fixture
+def package_one(project_template_cpp, install_dir, package_zero):
+    install(project_template_cpp / '01-find-package', install_dir)
+
+def test_one(install_dir, package_one):
+    assert subprocess.check_output(
+        [install_dir / 'bin' / 'hello']
+    ) == b'hello!\n'
