@@ -7,6 +7,7 @@ Be careful.
 # TODO: Create a module-scope, auto-use fixture that builds all Conan
 # dependencies to eliminate any race condition on the cache.
 
+import os
 import pathlib
 import pytest
 import subprocess
@@ -51,3 +52,19 @@ def test_one(install_dir, package_one):
     assert subprocess.check_output(
         [install_dir / 'bin' / 'hello']
     ) == b'hello!\n'
+
+@pytest.fixture
+def package_two(project_template_cpp, install_dir):
+    try:
+        os.symlink(
+            project_template_cpp / '00-upstream',
+            project_template_cpp / '02-add-subdirectory' / 'external' / '00-upstream',
+        )
+    except FileExistsError:
+        pass
+    install(project_template_cpp / '02-add-subdirectory', install_dir)
+
+def test_two(install_dir, package_two):
+    assert subprocess.check_output(
+        [install_dir / 'bin' / 'goodbye']
+    ) == b'goodbye!\n'
