@@ -29,8 +29,52 @@ def install_dir():
     with tempfile.TemporaryDirectory() as path:
         yield pathlib.Path(path)
 
-def install(source_dir, install_dir):
+@pytest.mark.parametrize(
+    ('subdirectory', 'dependencies', 'executable', 'output'),
+    [
+        ('00-upstream', [], 'true', b''),
+        ('01-find-package', ['00-upstream'], 'hello', b'hello!\n'),
+        ('02-add-subdirectory', [], 'goodbye', b'goodbye!\n'),
+        ('03-fp-fp', ['00-upstream', '01-find-package'], 'aloha', b'aloha!\n'),
+        ('04-as-fp', ['02-add-subdirectory'], 'four', b'4\n'),
+        ('05-fetch-content', [], 'five', b'5!\n'),
+        ('06-fp-fc', ['00-upstream'], 'six', b'6!\n'),
+        ('07-as-fc', [], 'seven', b'7!\n'),
+        ('08-find-module', [], 'eight', b'8!\n'),
+        ('09-external-project', [], 'nine', b'9!\n'),
+        ('10-conan', [], 'ten', b'10!\n'),
+    ]
+)
+def test_package(subdirectory, dependencies, install_dir, executable, output):
+    # Install any dependencies that must be installed.
+    for dependency in dependencies:
+        source_dir = project_template_cpp / dependency
+        with tempfile.TemporaryDirectory() as build_dir:
+            subprocess.check_call([
+                'cupcake',
+                'install',
+                '-S',
+                source_dir,
+                '-B',
+                build_dir,
+                '--prefix',
+                install_dir,
+            ])
+
+    source_dir = project_template_cpp / subdirectory
     with tempfile.TemporaryDirectory() as build_dir:
+        # Test the package tests.
+        subprocess.check_call([
+            'cupcake',
+            'test',
+            '-S',
+            source_dir,
+            '-B',
+            build_dir,
+            '-P',
+            install_dir,
+        ])
+        # Test the package installation.
         subprocess.check_call([
             'cupcake',
             'install',
@@ -41,51 +85,4 @@ def install(source_dir, install_dir):
             '--prefix',
             install_dir,
         ])
-
-@pytest.fixture
-def package_zero(install_dir):
-    install(project_template_cpp / '00-upstream', install_dir)
-
-def test_zero_installs(install_dir, package_zero):
-    assert subprocess.check_output([install_dir / 'bin' / 'true']) == b''
-
-@pytest.fixture
-def package_one(install_dir, package_zero):
-    install(project_template_cpp / '01-find-package', install_dir)
-
-def test_one(install_dir, package_one):
-    assert subprocess.check_output(
-        [install_dir / 'bin' / 'hello']
-    ) == b'hello!\n'
-
-@pytest.fixture
-def package_two(install_dir):
-    install(project_template_cpp / '02-add-subdirectory', install_dir)
-
-def test_two(install_dir, package_two):
-    assert subprocess.check_output(
-        [install_dir / 'bin' / 'goodbye']
-    ) == b'goodbye!\n'
-
-@pytest.fixture
-def package_three(install_dir, package_one):
-    install(project_template_cpp / '03-fp-fp', install_dir)
-
-def test_three(install_dir, package_three):
-    assert subprocess.check_output(
-        [install_dir / 'bin' / 'aloha']
-    ) == b'aloha!\n'
-
-@pytest.fixture
-def package_four(install_dir, package_two):
-    install(project_template_cpp / '04-as-fp', install_dir)
-
-def test_four(install_dir, package_four):
-    assert subprocess.check_output([install_dir / 'bin' / 'four']) == b'4\n'
-
-@pytest.fixture
-def package_five(install_dir):
-    install(project_template_cpp / '05-fetch-content', install_dir)
-
-def test_five(install_dir, package_five):
-    assert subprocess.check_output([install_dir / 'bin' / 'five']) == b'5!\n'
+    assert subprocess.check_output([install_dir / 'bin' / executable]) == output
