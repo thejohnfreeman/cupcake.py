@@ -1,0 +1,22 @@
+name: nix-upstream
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        platform:
+          - ubuntu
+          - macos
+    runs-on: ${{ matrix.platform }}-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: install environment
+        uses: ./.github/actions/install-nix
+      - name: install dependencies
+        run: |
+          poetry install
+      - name: test project
+        run: |
+          poetry run pytest -n auto

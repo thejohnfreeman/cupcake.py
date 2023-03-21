@@ -1,0 +1,12 @@
+name: install Python packages
+description: |
+  Install the common Python packages shared by all jobs.
+runs:
+  using: composite
+  steps:
+    - name: install Poetry
+      shell: bash
+      run: curl -sSL https://install.python-poetry.org | python3 -
+    - name: install Conan
+      shell: bash
+      run: pip install wheel 'conan<2'

@@ -1,0 +1,23 @@
+name: install Unix environment
+description: |
+  Install the common environment shared by all jobs in the nix workflow.
+runs:
+  using: composite
+  steps:
+    - name: install Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: install Python packages
+      uses: ./.github/actions/install-python
+    - name: check environment
+      shell: bash
+      run: |
+        echo $PATH | tr ':' '\n'
+        python --version
+        poetry --version
+        conan --version
+        cmake --version
+        gcc --version
+        make --version
+        env
