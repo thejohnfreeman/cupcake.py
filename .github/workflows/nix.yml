@@ -1,4 +1,4 @@
-name: nix-upstream
+name: test in Unix environment
 on: [push, pull_request]
 
 jobs:
