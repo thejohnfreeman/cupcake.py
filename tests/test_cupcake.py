@@ -13,11 +13,16 @@ import pytest
 import subprocess
 import tempfile
 
-@pytest.fixture
-def project_template_cpp():
-    # TODO: Better way to get this path?
-    root = pathlib.Path(__file__).parents[1]
-    return root / 'submodules' / 'project-template-cpp'
+# TODO: Better way to get this path?
+root = pathlib.Path(__file__).parents[1]
+project_template_cpp = root / 'submodules' / 'project-template-cpp'
+try:
+    os.symlink(
+        project_template_cpp / '00-upstream',
+        project_template_cpp / '02-add-subdirectory' / 'external' / '00-upstream',
+    )
+except FileExistsError:
+    pass
 
 @pytest.fixture
 def install_dir():
@@ -38,14 +43,14 @@ def install(source_dir, install_dir):
         ])
 
 @pytest.fixture
-def package_zero(project_template_cpp, install_dir):
+def package_zero(install_dir):
     install(project_template_cpp / '00-upstream', install_dir)
 
-def test_zero(install_dir, package_zero):
+def test_zero_installs(install_dir, package_zero):
     assert subprocess.check_output([install_dir / 'bin' / 'true']) == b''
 
 @pytest.fixture
-def package_one(project_template_cpp, install_dir, package_zero):
+def package_one(install_dir, package_zero):
     install(project_template_cpp / '01-find-package', install_dir)
 
 def test_one(install_dir, package_one):
@@ -54,14 +59,7 @@ def test_one(install_dir, package_one):
     ) == b'hello!\n'
 
 @pytest.fixture
-def package_two(project_template_cpp, install_dir):
-    try:
-        os.symlink(
-            project_template_cpp / '00-upstream',
-            project_template_cpp / '02-add-subdirectory' / 'external' / '00-upstream',
-        )
-    except FileExistsError:
-        pass
+def package_two(install_dir):
     install(project_template_cpp / '02-add-subdirectory', install_dir)
 
 def test_two(install_dir, package_two):
@@ -70,7 +68,7 @@ def test_two(install_dir, package_two):
     ) == b'goodbye!\n'
 
 @pytest.fixture
-def package_three(project_template_cpp, install_dir, package_one):
+def package_three(install_dir, package_one):
     install(project_template_cpp / '03-fp-fp', install_dir)
 
 def test_three(install_dir, package_three):
@@ -79,14 +77,14 @@ def test_three(install_dir, package_three):
     ) == b'aloha!\n'
 
 @pytest.fixture
-def package_four(project_template_cpp, install_dir, package_two):
+def package_four(install_dir, package_two):
     install(project_template_cpp / '04-as-fp', install_dir)
 
 def test_four(install_dir, package_four):
     assert subprocess.check_output([install_dir / 'bin' / 'four']) == b'4\n'
 
 @pytest.fixture
-def package_five(project_template_cpp, install_dir):
+def package_five(install_dir):
     install(project_template_cpp / '05-fetch-content', install_dir)
 
 def test_five(install_dir, package_five):
