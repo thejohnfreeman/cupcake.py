@@ -16,9 +16,12 @@ jobs:
           submodules: true
       - name: install environment
         uses: ./.github/actions/install-nix
-      - name: install cupcake Conan package
+      - name: export Conan packages from template-project-cpp
         run: |
+          # They all depend on `cupcake`.
           conan export submodules/project-template-cpp/cupcake
+          # `ten` (`10-conan`) depends on `zero`.
+          conan export submodules/project-template-cpp/00-upstream
       - name: install dependencies
         run: |
           poetry install
