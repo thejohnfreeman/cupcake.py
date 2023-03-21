@@ -11,9 +11,11 @@ runs:
       shell: bash
       run: pip install wheel 'conan<2'
     - name: configure Conan
+      shell: bash
       run: |
         conan profile new default --detect
     - name: configure Conan for GCC
       if: runner.os == 'Linux'
+      shell: bash
       run: |
         conan profile update settings.compiler.libcxx=libstdc++11 default
