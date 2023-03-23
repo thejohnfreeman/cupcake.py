@@ -72,4 +72,6 @@ class ValueProxy:
     def __bool__(self):
         return _SELVES[self].value is not _MISSING
     def __del__(self):
-        del _SELVES[self]
+        # TODO: Sometimes `_SELVES` is `None`. How?
+        if _SELVES:
+            del _SELVES[self]

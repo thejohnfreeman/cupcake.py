@@ -45,6 +45,75 @@ FLAVORS = {
 
 PATTERN_INDEX_FILENAME = re.compile(r'^index-.*\.json$')
 
+
+class SearchResult:
+    """Representation for a Conan package search result."""
+
+    key = functools.cmp_to_key(
+        lambda a, b: semver.compare(a.version, b.version)
+    )
+
+    def __init__(self, remote, reference):
+        self.remote = remote
+        match = re.match(f'^([^/]+)/([^@]+)(?:@(.*))?$', reference)
+        self.package = match[1]
+        self.version = match[2]
+        self.remainder = match[3]
+
+    def __str__(self):
+        s = f'{self.package}/{self.version}@'
+        if self.remainder:
+            s += self.remainder
+        return s
+
+    @staticmethod
+    def compare(a, b):
+        return semver.compare(a.version, b.version)
+
+class Conan:
+    def __init__(self, CONAN):
+        self.CONAN = CONAN
+
+    def search(self, query):
+        # TODO: Look into Conan Python API. Currently undocumented.
+        # TODO: Implement version constraints like Python.
+        # Use them to filter list.
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp) / 'search.json'
+
+            # Search local cache.
+            run(
+                [self.CONAN, 'search', '--json', tmp,  query],
+                stdout=subprocess.DEVNULL,
+            )
+            with tmp.open() as f:
+                local = json.load(f)
+            if local['error']:
+                raise SystemExit('unknown error searching local cache')
+
+            # Search remotes.
+            run(
+                [self.CONAN, 'search', '--json', tmp,  query, '--remote', 'all'],
+                stdout=subprocess.DEVNULL,
+            )
+            with tmp.open() as f:
+                remote = json.load(f)
+            if remote['error']:
+                raise SystemExit('unknown error searching remotes')
+
+            results = itertools.chain(local['results'], remote['results'])
+            results = [
+                SearchResult(result['remote'], item['recipe']['id'])
+                for result in results
+                for item in result['items']
+            ]
+            # They seem to be in ascending version order,
+            # but I'm not sure we can rely on that.
+            key = functools.cmp_to_key(SearchResult.compare)
+            results = sorted(results, key=key, reverse=True)
+            return results
+
+
 class CMake:
     def __init__(self, CMAKE):
         self.CMAKE = CMAKE
@@ -490,8 +559,13 @@ class Cupcake:
     @cascade.argument('query')
     def search(self, CONAN, query):
         """Search for packages."""
-        # TODO: Search local cache too?
-        run([CONAN, 'search', '--remote', 'all', query])
+        results = Conan(CONAN).search(query)
+        # Put the top results at the end
+        # to guarantee they can be seen without scrolling.
+        for result in reversed(results):
+            remote = result.remote
+            remote = remote if remote else '<local>'
+            print(f'{remote:20}: {result}')
 
     @cascade.command()
     @cascade.argument('package')
@@ -500,22 +574,10 @@ class Cupcake:
         # TODO: Support conanfile.txt.
         if conanfile_path_.name != 'conanfile.py':
             raise SystemExit('missing conanfile.py')
-        # TODO: Look into Conan Python API. Currently undocumented.
-        with tempfile.NamedTemporaryFile(mode='r') as file:
-            run([CONAN, 'search', '--remote', 'all', '--json', file.name, package])
-            results = json.load(file)
-        ids = [
-            x['recipe']['id']
-            for remote in results['results']
-            for x in remote['items']
-        ]
-        # Maximum version seems to be at the end,
-        # but I'm not sure we can rely on that.
-        pattern = re.compile(f'{package}/(.+)')
-        versions = [pattern.match(id).group(1) for id in ids]
-        # TODO: Implement version constraints like Python.
-        # Use them to filter list before selecting maximum.
-        version = functools.reduce(max_by(semver.compare), versions)
+        results = Conan(CONAN).search(package)
+        if len(results) < 1:
+            raise SystemExit('no matches found')
+        version = results[0].version
         # TODO: Add --upgrade option.
         with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
             tree = cst.parse_module(conanfile_path_.read_bytes())
