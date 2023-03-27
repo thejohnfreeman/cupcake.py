@@ -528,8 +528,12 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
+    @cascade.option(
+        '--name', help='Package name. Default is the directory name.'
+    )
     @cascade.option('--license', default='ISC')
-    def new(self, path, license):
+    @cascade.option('--force', '-f', is_flag=True)
+    def new(self, path, name, license, force):
         """Create a new project."""
         loader = jinja2.PackageLoader('cupcake', 'data/new')
         env = jinja2.Environment(loader=loader, keep_trailing_newline=True)
@@ -544,9 +548,10 @@ class Cupcake:
         )
 
         prefix = pathlib.Path(path).resolve()
-        if prefix.exists() and any(prefix.iterdir()):
+        if not force and prefix.exists() and any(prefix.iterdir()):
             raise SystemExit('directory is not empty')
-        name = prefix.name
+        if name is None:
+            name = prefix.name
 
         for tname in loader.list_templates():
             suffix = env.from_string(tname).render(**context, name=name)
