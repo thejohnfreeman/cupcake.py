@@ -10,10 +10,6 @@ find_package(cupcake 0.1.0 REQUIRED)
 
 cupcake_project()
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED YES)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
 cupcake_add_library({{ name }})
 
 cupcake_add_executable({{ name }})
