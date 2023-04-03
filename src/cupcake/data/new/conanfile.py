@@ -6,20 +6,36 @@ class {{ name | capitalize }}(ConanFile):
     version = '0.1.0'
 
     license = '{{ license }}'
+    {% if author %}
     author = '{{ author }}'
+    {% endif %}
+    {% if github %}
     url = 'https://github.com/{{ github }}/{{ name }}'
+    {% endif %}
 
     settings = 'os', 'compiler', 'build_type', 'arch'
     options = {'shared': [True, False], 'fPIC': [True, False]}
     default_options = {'shared': False, 'fPIC': True}
 
-    requires = ['cupcake/0.1.0', 'doctest/2.4.8']
-    generators = 'CMakeDeps', 'CMakeToolchain'
+    requires = ['cupcake/0.1.0']
+    test_requires = ['doctest/2.4.8']
+    generators = ['CMakeDeps', 'CMakeToolchain']
 
-    exports_sources = 'conanfile.txt', 'CMakeLists.txt', 'cmake/*', 'include/*', 'src/*'
+    exports_sources = [
+        'CMakeLists.txt',
+        'cmake/*',
+        'external/*',
+        'include/*',
+        'src/*',
+    ]
+
     # For out-of-source build.
     # https://docs.conan.io/en/latest/reference/build_helpers/cmake.html#configure
     no_copy_source = True
+
+    def requirements(self):
+        for requirement in self.test_requires:
+            self.requires(requirement)
 
     def config_options(self):
         if self.settings.os == 'Windows':

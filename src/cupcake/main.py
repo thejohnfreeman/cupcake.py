@@ -8,6 +8,7 @@ import itertools
 import jinja2
 import json
 import libcst as cst
+import libcst.matchers
 import os
 import pathlib
 import re
@@ -21,7 +22,7 @@ from cupcake import cascade, confee
 
 def run(command, *args, **kwargs):
     # TODO: Print this in a special color.
-    print(' '.join(shlex.quote(str(arg)) for arg in command))
+    print(' '.join(shlex.quote(str(arg)) for arg in command), flush=True)
     proc = subprocess.run(command, *args, **kwargs)
     proc.check_returncode()
     return proc
@@ -171,11 +172,15 @@ def cstNewLine(indent=''):
 
 class ChangeRequirements(cst.CSTTransformer):
 
+    def __init__(self, properties=['requires']):
+        m = cst.matchers
+        self.properties = m.OneOf(*map(m.Name, properties))
+
     def leave_Assign(self, old, new):
-        import libcst.matchers as m
+        m = cst.matchers
         if len(new.targets) != 1:
             return new
-        if not m.matches(new.targets[0].target, m.Name('requires')):
+        if not m.matches(new.targets[0].target, self.properties):
             return new
         if not m.matches(
             new.value,
@@ -209,7 +214,8 @@ class ChangeRequirements(cst.CSTTransformer):
 
 class AddRequirement(ChangeRequirements):
 
-    def __init__(self, name, version):
+    def __init__(self, property, name, version):
+        super().__init__(properties=[property])
         self.name = name
         self.version = version
 
@@ -221,6 +227,7 @@ class AddRequirement(ChangeRequirements):
 class RemoveRequirement(ChangeRequirements):
 
     def __init__(self, name):
+        super().__init__(properties=['requires', 'test_requires'])
         self.name = name
 
     def change_(self, ids):
@@ -391,25 +398,40 @@ class Cupcake:
     @cascade.command()
     @cascade.option('--generator', '-G', help='Name of CMake generator.')
     @cascade.option(
-        '-P', 'prefix_paths',
-        help='Prefix to search for installed packages.',
+        '--shared/--static',
+        help='Whether to build shared libraries.',
+        default=None,
+    )
+    @cascade.option(
+        '--with-tests/--without-tests',
+        help='Whether to include tests.',
+        default=None,
+    )
+    @cascade.option(
+        '-P', 'prefixes',
+        help='Prefix to search for installed packages. Repeatable.',
         multiple=True,
     )
     def cmake(
-            self,
-            source_dir_,
-            config_,
-            CMAKE,
-            build_dir_,
-            state_,
-            flavor_,
-            prefix_,
-            conan,
-            generator,
-            prefix_paths,
+        self,
+        source_dir_,
+        config_,
+        CMAKE,
+        build_dir_,
+        state_,
+        flavor_,
+        prefix_,
+        conan,
+        generator,
+        shared,
+        with_tests,
+        prefixes,
     ):
         """Configure CMake."""
         generator = confee.resolve(generator, config_.cmake.generator, None)
+        shared = confee.resolve(shared, config_.cmake.shared, False)
+        with_tests = confee.resolve(with_tests, config_.cmake.tests, True)
+        prefixes = confee.resolve(prefixes or None, config_.cmake.prefixes, [])
         # TODO: Convenience API for hashing identities.
         m = hashlib.sha256()
         if conan is not None:
@@ -418,7 +440,11 @@ class Cupcake:
         m.update((source_dir_ / 'CMakeLists.txt').read_bytes())
         if generator is not None:
             m.update(generator.encode())
-        for p in prefix_paths:
+        if shared:
+            m.update(b'shared')
+        if with_tests:
+            m.update(b'tests')
+        for p in prefixes:
             m.update(p.encode())
         id = m.hexdigest()
         # We need to know what flavors are configured in CMake after this
@@ -457,11 +483,14 @@ class Cupcake:
         # This directory should not yet exist, but its parent might.
         cmake_dir.mkdir(parents=True)
         cmake_args = {}
+        cmake_args['BUILD_SHARED_LIBS'] = 'ON' if shared else 'OFF'
         cmake_args['CMAKE_INSTALL_PREFIX'] = prefix_
         if conan is not None:
             cmake_args['CMAKE_TOOLCHAIN_FILE:FILEPATH'] = conan.toolchain()
-        if prefix_paths:
-            cmake_args['CMAKE_PREFIX_PATH'] = ';'.join(prefix_paths)
+        if with_tests is not None:
+            cmake_args['BUILD_TESTING'] = 'ON' if with_tests else 'OFF'
+        if prefixes:
+            cmake_args['CMAKE_PREFIX_PATH'] = ';'.join(prefixes)
         if multiConfig:
             new_flavors = config_.flavors()
             cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(new_flavors)
@@ -531,20 +560,53 @@ class Cupcake:
     @cascade.option(
         '--name', help='Package name. Default is the directory name.'
     )
-    @cascade.option('--license', default='ISC')
-    @cascade.option('--force', '-f', is_flag=True)
-    def new(self, path, name, license, force):
+    @cascade.option(
+        '--license',
+        help='The software license SPDX identifier.',
+        default='ISC',
+    )
+    @cascade.option(
+        '--author',
+        help='''
+        The author name and/or email address,
+        in the format "First Last <user@domain.com>".
+        The default is taken from `git config`.
+        ''',
+    )
+    @cascade.option(
+        '--github', '--gh', help='The GitHub user or organization.',
+    )
+    @cascade.option(
+        '--force', '-f',
+        help='Ignore whether directory is empty.',
+        is_flag=True,
+    )
+    def new(self, path, name, license, author, github, force):
         """Create a new project."""
         loader = jinja2.PackageLoader('cupcake', 'data/new')
-        env = jinja2.Environment(loader=loader, keep_trailing_newline=True)
+        env = jinja2.Environment(
+            loader=loader,
+            keep_trailing_newline=True,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+
+        if author is None:
+            username = subprocess.run(
+                ['git', 'config', 'user.name'], capture_output=True
+            ).stdout.decode().strip()
+            email = subprocess.run(
+                ['git', 'config', 'user.email'], capture_output=True
+            ).stdout.decode().strip()
+            author = f'{username} <{email}>'
 
         # TODO: Take these values from a user config or Git.
         # $ git config user.name
         # $ git config user.email
         context = dict(
             license=license,
-            author='John Freeman <jfreeman08@gmail.com>',
-            github='thejohnfreeman',
+            author=author,
+            github=github,
         )
 
         prefix = pathlib.Path(path).resolve()
@@ -570,11 +632,15 @@ class Cupcake:
         for result in reversed(results):
             remote = result.remote
             remote = remote if remote else '<local>'
-            print(f'{remote:20}: {result}')
+            print(f'{remote:20} {result}')
 
     @cascade.command()
+    # TODO: Mutually exclusive option group for category.
+    @cascade.option(
+        '--test', '-T', 'as_test', is_flag=True, help='As a test requirement.',
+    )
     @cascade.argument('package')
-    def add(self, CONAN, conanfile_path_, package):
+    def add(self, CONAN, conanfile_path_, as_test, package):
         """Add a requirement."""
         # TODO: Support conanfile.txt.
         if conanfile_path_.name != 'conanfile.py':
@@ -586,7 +652,9 @@ class Cupcake:
         # TODO: Add --upgrade option.
         with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
             tree = cst.parse_module(conanfile_path_.read_bytes())
-            tree = tree.visit(AddRequirement(package, version))
+            tree = tree.visit(AddRequirement(
+                'test_requires' if as_test else 'requires', package, version,
+            ))
             recipe_out.write(tree.code)
             recipe_out.flush()
             shutil.copy(recipe_out.name, conanfile_path_)
