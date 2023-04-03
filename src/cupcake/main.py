@@ -284,6 +284,8 @@ class Cupcake:
         """
         # This value is separate from `build_dir_` so that `clean` can use the
         # path without creating the directory.
+        # TODO: Resolve command-line value against current directory,
+        # but configuration or default value against source directory.
         build_dir = confee.resolve(build_dir, config_.directory, '.build')
         build_dir = source_dir_ / build_dir
         return build_dir
@@ -553,7 +555,7 @@ class Cupcake:
             'flavor': FLAVORS[flavor_],
         }
         command = shlex.split(template.render(**context))
-        run(command)
+        run(command, env={'CTEST_OUTPUT_ON_FAILURE': 'ON'})
 
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
