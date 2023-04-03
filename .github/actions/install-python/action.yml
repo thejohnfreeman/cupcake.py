@@ -16,6 +16,7 @@ runs:
       shell: bash
       run: |
         conan profile new default --detect
+        conan profile update settings.compiler.cppstd=20
     - name: configure Conan for GCC
       if: runner.os == 'Linux'
       shell: bash
