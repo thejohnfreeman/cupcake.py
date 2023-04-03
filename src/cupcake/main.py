@@ -24,7 +24,8 @@ def run(command, *args, **kwargs):
     # TODO: Print this in a special color.
     print(' '.join(shlex.quote(str(arg)) for arg in command), flush=True)
     proc = subprocess.run(command, *args, **kwargs)
-    proc.check_returncode()
+    if proc.returncode is not 0:
+        raise SystemExit(proc.returncode)
     return proc
 
 def hash_file(path):
