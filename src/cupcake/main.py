@@ -556,7 +556,9 @@ class Cupcake:
             'flavor': FLAVORS[flavor_],
         }
         command = shlex.split(template.render(**context))
-        run(command, env={'CTEST_OUTPUT_ON_FAILURE': 'ON'})
+        env = os.environ.copy()
+        env['CTEST_OUTPUT_ON_FAILURE'] = 'ON'
+        run(command, env=env)
 
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
