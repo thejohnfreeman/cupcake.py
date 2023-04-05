@@ -43,8 +43,7 @@ class {{ name | capitalize }}(ConanFile):
 
     def build(self):
         cmake = CMake(self)
-        cmake.definitions['BUILD_TESTING'] = 'NO'
-        cmake.configure()
+        cmake.configure(variables={'BUILD_TESTING': 'NO'})
         cmake.build()
 
     def package(self):

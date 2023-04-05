@@ -24,7 +24,7 @@ def run(command, *args, **kwargs):
     # TODO: Print this in a special color.
     print(' '.join(shlex.quote(str(arg)) for arg in command), flush=True)
     proc = subprocess.run(command, *args, **kwargs)
-    if proc.returncode is not 0:
+    if proc.returncode != 0:
         raise SystemExit(proc.returncode)
     return proc
 
@@ -677,6 +677,11 @@ class Cupcake:
             recipe_out.write(tree.code)
             recipe_out.flush()
             shutil.copy(recipe_out.name, conanfile_path_)
+
+    @cascade.command()
+    def pack(self, CONAN, source_dir_):
+        """Publish a Conan package."""
+        run([CONAN, 'create', source_dir_])
 
     @cascade.command()
     def clean(self, build_dir_path_):
