@@ -36,15 +36,16 @@ cupcake new seedgen
 
 Each new Cupcake project comes by default with:
 
-- a single (binary) library named after the project
-    with one public header
-- a single executable named after the project
-- a single test named after the project
-- a root `CMakeLists.txt`
-- a Conan recipe
-- a `.gitignore` file
-- a dependency on the `cupcake` CMake module
-- a test dependency on `doctest`
+- one (binary) [library][5] named after the project
+    with one [public header][6]
+- one [executable][7] named after the project
+- one [test][8] named after the project
+- a root [`CMakeLists.txt`][9]
+- a [Conan recipe][10]
+- a [`.gitignore`][11] that ignores Cupcake's default configuration file and
+    build and install directories
+- a dependency on the [`cupcake`] CMake module
+- a test dependency on [`doctest`]
 
 We will use all of these parts in this tutorial,
 but in your own projects,
@@ -277,10 +278,10 @@ Cupcake cannot assume which libraries, executables, or tests in your project
 should link against which exports of the package.
 You'll have to finish the job.
 Open the root `CMakeLists.txt`
-and add calls to `find_package` and `target_link_libraries`:
+and add calls to `cupcake_find_package` and `target_link_libraries`:
 
 ```cmake
-find_package(xrpl 1.10.0)
+cupcake_find_package(xrpl 1.10.0)
 target_link_libraries(seedgen::libseedgen PUBLIC xrpl::libxrpl)
 ```
 
@@ -319,6 +320,8 @@ After packing `seedgen`, it is ready to use in another project:
 [project-template-cpp]: https://github.com/thejohnfreeman/project-template-cpp
 [rippled]: https://github.com/XRPLF/rippled.git
 [Cupcake]: https://pypi.org/project/cupcake/
+[`cupcake`]: https://github.com/thejohnfreeman/project-template-cpp/tree/master/cupcake
+[`doctest`]: https://github.com/doctest/doctest
 [Conan]: https://conan.io/
 [libxrpl]: https://github.com/XRPLF/rippled/blob/develop/conanfile.py#L146-L154
 [`ripple::Seed`]: https://xrplf.github.io/rippled/classripple_1_1Seed.html
@@ -332,3 +335,10 @@ After packing `seedgen`, it is ready to use in another project:
 [2]: https://cmake.org/cmake/help/latest/prop_tgt/MSVC_RUNTIME_LIBRARY.html
 [3]: https://cmake.org/cmake/help/latest/manual/cmake-buildsystem.7.html#build-configurations
 [4]: https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html
+[5]: https://github.com/thejohnfreeman/try-cupcake/blob/01-create/seedgen/src/libseedgen.cpp
+[6]: https://github.com/thejohnfreeman/try-cupcake/blob/01-create/seedgen/include/seedgen/seedgen.hpp
+[7]: https://github.com/thejohnfreeman/try-cupcake/blob/01-create/seedgen/src/seedgen.cpp
+[8]: https://github.com/thejohnfreeman/try-cupcake/blob/01-create/seedgen/tests/seedgen.cpp
+[9]: https://github.com/thejohnfreeman/try-cupcake/blob/01-create/seedgen/CMakeLists.txt
+[10]: https://github.com/thejohnfreeman/try-cupcake/blob/01-create/seedgen/conanfile.py
+[11]: https://github.com/thejohnfreeman/try-cupcake/blob/01-create/seedgen/.gitignore
