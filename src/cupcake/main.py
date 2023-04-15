@@ -9,10 +9,10 @@ import jinja2
 import json
 import libcst as cst
 import libcst.matchers
+import operator
 import os
 import pathlib
 import re
-import semver
 import shlex
 import shutil
 import subprocess
@@ -47,12 +47,81 @@ FLAVORS = {
 
 PATTERN_INDEX_FILENAME = re.compile(r'^index-.*\.json$')
 
+def const(value):
+    def f(*args, **kwargs):
+        return value
+    return f
+
+def compare(a, b):
+    # Insane that Python does not have an efficient method for this.
+    # https://stackoverflow.com/q/50782317/618906
+    if a < b:
+        return -1
+    if a > b:
+        return 1
+    return 0
+
+nonet = type(None)
+compares = {
+    (int, int): operator.sub,
+    (str, str): compare,
+    (int, nonet): const(1),
+    (nonet, int): const(-1),
+    (int, str): const(1),
+    (str, int): const(-1),
+    (str, nonet): const(-1),
+    (nonet, str): const(1),
+}
+
+def print_call():
+    def decorate(f):
+        @functools.wraps(f)
+        def decorated(*args, **kwargs):
+            argss = ', '.join(map(str, args))
+            print(f'{f.__name__}({argss}) => ', end='')
+            value = f(*args, **kwargs)
+            print(value)
+            return value
+        return decorated
+    return decorate
+
+def compare_version(a, b):
+    # Not all Conan packages use Semantic Versioning.
+    # To be as flexible as possible,
+    # we treat version strings as non-digit-separated sequences of numbers.
+    # Sequences are compared item-by-item, in order.
+    # Numbers are compared numerically,
+    # non-numbers are compared lexicographically.
+    # Numbers are considered higher/later/younger versions than non-numbers.
+    # Numbers are considered higher/later/younger versions than nothing.
+    # Non-numbers are considered lower/earlier/older versions than nothing.
+    aa = re.split('(\D+)', a)
+    bb = re.split('(\D+)', b)
+    for aaa, bbb in itertools.zip_longest(aa, bb):
+        try:
+            aaa = int(aaa)
+            aaat = int
+        except (ValueError, TypeError):
+            aaat = type(aaa)
+        try:
+            bbb = int(bbb)
+            bbbt = int
+        except (ValueError, TypeError):
+            bbbt = type(bbb)
+        diff = compares[(aaat, bbbt)](aaa, bbb)
+        if diff:
+            return diff
+    return 0
+
+key = functools.cmp_to_key(
+    lambda a, b: compare_version(a, b)
+)
 
 class SearchResult:
     """Representation for a Conan package search result."""
 
     key = functools.cmp_to_key(
-        lambda a, b: semver.compare(a.version, b.version)
+        lambda a, b: compare_version(a.version, b.version)
     )
 
     def __init__(self, remote, reference):
@@ -67,10 +136,6 @@ class SearchResult:
         if self.remainder:
             s += self.remainder
         return s
-
-    @staticmethod
-    def compare(a, b):
-        return semver.compare(a.version, b.version)
 
 class Conan:
     def __init__(self, CONAN):
@@ -111,8 +176,7 @@ class Conan:
             ]
             # They seem to be in ascending version order,
             # but I'm not sure we can rely on that.
-            key = functools.cmp_to_key(SearchResult.compare)
-            results = sorted(results, key=key, reverse=True)
+            results = sorted(results, key=SearchResult.key, reverse=True)
             return results
 
 
