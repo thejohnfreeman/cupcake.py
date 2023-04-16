@@ -17,6 +17,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import urllib.parse
 
 from cupcake import cascade, confee
 
@@ -116,6 +117,22 @@ def compare_version(a, b):
 key = functools.cmp_to_key(
     lambda a, b: compare_version(a, b)
 )
+
+PATTERN_GITHUB_PATH = r'/([^/]+)/([^/]+)(?:/tree/[^/]+(.+))?'
+
+@contextmanager
+def pack_directory(path):
+    yield path
+
+@contextmanager
+def pack_github(path):
+    """Return a path to a Conan package directory identified by _url_."""
+    with tempfile.TemporaryDirectory() as tmp:
+        user, project, suffix = re.match(PATTERN_GITHUB_PATH, path).groups()
+        if suffix is None:
+            suffix = '/'
+        run(['git', 'clone', f'https://github.com/{user}/{project}', tmp])
+        yield tmp + suffix
 
 class SearchResult:
     """Representation for a Conan package search result."""
@@ -743,9 +760,39 @@ class Cupcake:
             shutil.copy(recipe_out.name, conanfile_path_)
 
     @cascade.command()
-    def pack(self, CONAN, source_dir_):
-        """Publish a Conan package."""
-        run([CONAN, 'create', source_dir_])
+    @cascade.argument('url', default='.')
+    def pack(self, CONAN, url):
+        """
+        Add a Conan package to your local cache.
+
+        For this command, it is important to understand the idea of a "Conan
+        package directory", which is a directory containing a `conanfile.py`
+        Conan recipe.
+        The URL argument must resolve to a Conan package directory.
+
+        The default URL is `.`, which is the package you are in,
+        but a few schemes are understood:
+
+        \b
+        - An absolute or relative path to a Conan package directory.
+        - A file:// URL for an absolute path to a Conan package directory.
+        - An http:// or https:// URL for the github.com domain pointing to
+          a Conan package directory.
+        - A gh://username/project[/path/to/directory] URL that identifies
+          a GitHub project and an optional path within that project to
+          a Conan package directory.
+        """
+        parts = urllib.parse.urlparse(url)
+        if parts.scheme in ('http', 'https'):
+            if parts.netloc != 'github.com':
+                raise ValueError('unknown URL')
+            context = pack_github(parts.path)
+        elif parts.scheme == 'gh':
+            context = pack_github(parts.path)
+        elif parts.scheme in ('', 'file'):
+            context = pack_directory(parts.path)
+        with context as path:
+            run([CONAN, 'export', path])
 
     @cascade.command()
     def clean(self, build_dir_path_):
