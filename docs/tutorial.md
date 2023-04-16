@@ -52,6 +52,22 @@ but in your own projects,
 one of your first acts might be to remove the parts that you don't need.
 
 
+## The `cupcake` CMake module
+
+Cupcake's default template leverages a CMake module named `cupcake`
+to encapsulate CMake boilerplate and best practices and let us write
+minimal CMake.
+The template's Conan recipe includes a dependency on a Conan package named
+`cupcake` that exports the CMake module.
+That package is not available on any Artifactory right now,
+but you can add it to your local cache with `cupcake pack`,
+which works for GitHub URLs:
+
+```
+cupcake pack https://github.com/thejohnfreeman/project-template-cpp/tree/master/cupcake
+```
+
+
 ## Commands
 
 A new Cupcake project can be built out-of-the-box with `cupcake build`.
