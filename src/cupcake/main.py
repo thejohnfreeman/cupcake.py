@@ -603,14 +603,28 @@ class Cupcake:
     )
     def build(self, CMAKE, cmake_dir_, flavor_, cmake, jobs):
         """Build the selected flavor."""
-        args = ['--verbose']
+        command = [CMAKE, '--build', cmake_dir_, '--verbose']
         if cmake.multiConfig():
-            args.extend(['--config', FLAVORS[flavor_]])
-        args.append('--parallel')
+            command.extend(['--config', FLAVORS[flavor_]])
+        command.append('--parallel')
         if jobs is not None:
-            args.append(jobs)
-        run([CMAKE, '--build', cmake_dir_, *args])
+            command.append(jobs)
+        run(command)
         return cmake
+
+    @cascade.command()
+    @cascade.argument('executable', required=False)
+    @cascade.argument('arguments', nargs=-1)
+    def exe(self, CMAKE, cmake_dir_, flavor_, cmake, executable, arguments):
+        target = 'execute'
+        if executable is not None:
+            target += '-' + executable
+        command = [CMAKE, '--build', cmake_dir_, '--target', target]
+        if cmake.multiConfig():
+            command.extend(['--config', FLAVORS[flavor_]])
+        env = os.environ.copy()
+        env['CUPCAKE_EXE_ARGUMENTS'] = ' '.join(map(shlex.quote, arguments))
+        run(command, env=env)
 
     @cascade.command()
     def install(self, CMAKE, cmake_dir_, flavor_, build, prefix_):
