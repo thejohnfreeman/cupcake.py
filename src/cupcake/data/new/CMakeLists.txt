@@ -12,6 +12,8 @@ find_package(cupcake 0.1.0 REQUIRED)
 
 cupcake_project()
 
+# imports
+
 cupcake_add_library({{ name }})
 
 cupcake_add_executable({{ name }})

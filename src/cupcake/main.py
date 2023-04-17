@@ -240,6 +240,44 @@ class CMake:
             args = ['-G', generator, *args]
         run([self.CMAKE, *args], cwd=build_dir)
 
+class CMakeLists:
+    def __init__(self, path):
+        self.path = path
+
+    def import_(self, package, version):
+        MODE_FIND = 0
+        MODE_INSERT = 1
+        MODE_FINISH = 2
+
+        added_line = f'cupcake_find_package({package} {version})\n'
+        with tempfile.NamedTemporaryFile(mode='w') as cml_out:
+            with self.path.open('r') as cml_in:
+                mode = MODE_FIND
+                for line in cml_in:
+                    if mode == MODE_FIND and re.match(r'^# imports$', line):
+                        mode = MODE_INSERT
+                    elif mode == MODE_INSERT:
+                        is_comment = re.match(r'^#', line)
+                        match = re.match(r'^cupcake_find_package\((\w+)', line)
+                        skip = (
+                            is_comment or
+                            (match and match.group(1) < package)
+                        )
+                        # Would love to have goto for this situation.
+                        if match and match.group(1) == package:
+                            mode = MODE_FINISH
+                        elif not skip:
+                            cml_out.write(added_line)
+                            mode = MODE_FINISH
+                    cml_out.write(line)
+            if mode == MODE_INSERT:
+                cml_out.write(added_line)
+            elif mode == MODE_FIND:
+                print(f'nowhere to insert call to `find_package` in {cml}')
+                return
+            cml_out.flush()
+            shutil.copy(cml_out.name, self.path)
+
 test_template = """
 {{ cmake }} --build {{ cmakeDir }}
 {% if multiConfig %} --config {{ flavor }} {% endif %}
@@ -740,7 +778,7 @@ class Cupcake:
         '--test', '-T', 'as_test', is_flag=True, help='As a test requirement.',
     )
     @cascade.argument('package')
-    def add(self, CONAN, conanfile_path_, as_test, package):
+    def add(self, CONAN, source_dir_, conanfile_path_, as_test, package):
         """Add a requirement."""
         # TODO: Support conanfile.txt.
         if conanfile_path_.name != 'conanfile.py':
@@ -758,6 +796,31 @@ class Cupcake:
             recipe_out.write(tree.code)
             recipe_out.flush()
             shutil.copy(recipe_out.name, conanfile_path_)
+
+        # Have to jump through some hoops to get the `cmake_file_name`
+        # that we must pass to `find_package`.
+        loader = jinja2.PackageLoader('cupcake', 'data')
+        env = jinja2.Environment(
+            loader=loader,
+            keep_trailing_newline=True,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+        template = env.get_template('cmake_file_name.py')
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = pathlib.Path(tmp)
+            stream = template.stream(dict(ref=f'{package}/{version}'))
+            with (cwd / 'conanfile.py').open('w') as file:
+                stream.dump(file)
+            run([CONAN, 'install', '.', '--build', 'missing'], cwd=cwd)
+            cmake_file_name = (cwd / 'cmake_file_name.txt').read_text()
+
+        # Add an import.
+        cml = source_dir_
+        if as_test:
+            cml /= 'tests'
+        cml /= 'CMakeLists.txt'
+        CMakeLists(cml).import_(cmake_file_name, version)
 
     @cascade.command()
     @cascade.argument('package')
