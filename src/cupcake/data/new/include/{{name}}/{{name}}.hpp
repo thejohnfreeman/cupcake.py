@@ -1,5 +1,5 @@
-#ifndef {{ name | upper }}_HPP
-#define {{ name | upper }}_HPP
+#ifndef {{ name | upper }}_{{ name | upper }}_HPP
+#define {{ name | upper }}_{{ name | upper }}_HPP
 
 #include <{{ name }}/export.hpp>
 
