@@ -558,6 +558,16 @@ class Cupcake:
         help='Prefix to search for installed packages. Repeatable.',
         multiple=True,
     )
+    @cascade.option(
+        '-D', 'variables',
+        help='CMake variables to set. Repeatable.',
+        multiple=True,
+    )
+    @cascade.option(
+        '-U', 'unvariables',
+        help='CMake variables to unset. Repeatable.',
+        multiple=True,
+    )
     def cmake(
         self,
         source_dir_,
@@ -572,8 +582,30 @@ class Cupcake:
         shared,
         with_tests,
         prefixes,
+        variables,
+        unvariables,
     ):
         """Configure CMake."""
+        # Variables are a little unique.
+        # We must start with `config.cmake.variables` (default `{}`),
+        # override with `variables`,
+        # remove `unvariables`,
+        # and then write the result to `config.cmake.variables`.
+        cvars = config_.cmake.variables({})
+        for variable in variables:
+            match = re.match(r'^([^=]+)(?:=(.+))?$', variable)
+            if not match:
+                raise SystemExit(f'bad variable: `{variable}`')
+            name = match.group(1)
+            value = match.group(2)
+            if value is None:
+                value = 'TRUE'
+            cvars[name] = value
+        for name in unvariables:
+            cvars.pop(name, None)
+        if cvars:
+            config_.cmake.variables = cvars
+
         generator = confee.resolve(generator, config_.cmake.generator, None)
         shared = confee.resolve(shared, config_.cmake.shared, False)
         with_tests = confee.resolve(with_tests, config_.cmake.tests, True)
@@ -592,6 +624,9 @@ class Cupcake:
             m.update(b'tests')
         for p in prefixes:
             m.update(p.encode())
+        for name, value in cvars.items():
+            m.update(name.encode())
+            m.update(value.encode())
         id = m.hexdigest()
         # We need to know what flavors are configured in CMake after this
         # step.
@@ -642,6 +677,9 @@ class Cupcake:
             cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(new_flavors)
         else:
             cmake_args['CMAKE_BUILD_TYPE'] = FLAVORS[flavor_]
+        # Add these last to let callers override anything.
+        for name, value in cvars.items():
+            cmake_args[name] = value
         CMake(CMAKE).configure(
             cmake_dir, source_dir_, generator, cmake_args
         )
