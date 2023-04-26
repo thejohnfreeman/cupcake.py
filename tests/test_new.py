@@ -10,4 +10,4 @@ def test_new():
         test('clean', '-S', 'foo', '-B', '.build')
         test('test', '-S', 'foo', '-B', '.build')
         test('install', '-S', 'foo', '-B', '.build', '--prefix', '.install')
-        test('add', '-S', 'foo', 'boost')
+        test('add', '-S', 'foo', 'zlib')
