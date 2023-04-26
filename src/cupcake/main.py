@@ -16,6 +16,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.parse
 
@@ -28,6 +29,21 @@ def run(command, *args, **kwargs):
     if proc.returncode != 0:
         raise SystemExit(proc.returncode)
     return proc
+
+def tee(command, *args, log, **kwargs):
+    proc = subprocess.Popen(
+        command, *args,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
+    )
+    with open(log, 'wb') as logf:
+        line = ' '.join(shlex.quote(str(arg)) for arg in command).encode()
+        logf.write(line)
+        sys.stdout.buffer.write(line)
+        for line in proc.stdout:
+            logf.write(line)
+            sys.stdout.buffer.write(line)
+    if proc.wait() != 0:
+        raise SystemExit(proc.returncode)
 
 def hash_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -419,6 +435,12 @@ class Cupcake:
         return build_dir_path_
 
     @cascade.value()
+    def log_dir_(self, build_dir_) -> pathlib.Path:
+        log_dir_path_ = build_dir_ / 'logs'
+        log_dir_path_.mkdir(exist_ok=True)
+        return log_dir_path_
+
+    @cascade.value()
     def state_(self, build_dir_):
         path = build_dir_ / 'cupcake.toml'
         return confee.read(path)
@@ -463,6 +485,7 @@ class Cupcake:
         source_dir_,
         conanfile_path_,
         build_dir_,
+        log_dir_,
         config_,
         CONAN,
         state_,
@@ -499,8 +522,9 @@ class Cupcake:
             '--profile:build', profile, '--profile:host', profile,
         ]
         for flavor in diff_flavors:
-            run(
+            tee(
                 [*base_command, '--settings', f'build_type={FLAVORS[flavor_]}'],
+                log=log_dir_ / 'conan',
                 cwd=conan_dir,
             )
         state_.conan.id = id
@@ -639,7 +663,7 @@ class Cupcake:
     @cascade.option(
         '--jobs', '-j', help='Maximum number of simultaneous jobs.'
     )
-    def build(self, CMAKE, cmake_dir_, flavor_, cmake, jobs):
+    def build(self, CMAKE, build_dir_, log_dir_, cmake_dir_, flavor_, cmake, jobs):
         """Build the selected flavor."""
         command = [CMAKE, '--build', cmake_dir_, '--verbose']
         if cmake.multiConfig():
@@ -647,7 +671,7 @@ class Cupcake:
         command.append('--parallel')
         if jobs is not None:
             command.append(jobs)
-        run(command)
+        tee(command, log=log_dir_ / 'build')
         return cmake
 
     @cascade.command()
