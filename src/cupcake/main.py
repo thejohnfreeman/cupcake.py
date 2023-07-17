@@ -291,7 +291,7 @@ class CMakeLists:
             if mode == MODE_INSERT:
                 cml_out.write(added_line)
             elif mode == MODE_FIND:
-                print(f'nowhere to insert call to `find_package` in {cml}')
+                print(f'nowhere to insert call to `find_package` in {self.path}')
                 return
             cml_out.flush()
             shutil.copy(cml_out.name, self.path)
