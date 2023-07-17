@@ -638,6 +638,8 @@ class Cupcake:
             cvars.pop(name, None)
         if cvars:
             config_.cmake.variables = cvars
+        elif config_.cmake.variables:
+            del config_.cmake.variables
 
         generator = confee.resolve(generator, config_.cmake.generator, None)
         shared = confee.resolve(shared, config_.cmake.shared, False)
