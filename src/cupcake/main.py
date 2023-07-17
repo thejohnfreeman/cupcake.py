@@ -482,6 +482,11 @@ class Cupcake:
     @cascade.command()
     @cascade.option('--profile', help='Name of Conan profile.')
     # TODO: Add option to configure shared linkage.
+    @cascade.option(
+        '-o', 'options',
+        help='Conan options to set. Repeatable.',
+        multiple=True,
+    )
     def conan(
         self,
         source_dir_,
@@ -493,18 +498,42 @@ class Cupcake:
         state_,
         flavor_,
         profile,
+        options,
     ):
         """Configure Conan."""
         if not conanfile_path_:
             return
         # TODO: Respect `conan config get general.default_profile`.
         profile = confee.resolve(profile, config_.conan.profile, 'default')
+        # Options are a little unique.
+        # We must start with `config.conan.options` (default `{}`),
+        # override with `options`,
+        # and then write the result to `config.conan.options`.
+        copts = config_.conan.options({})
+        for option in options:
+            match = re.match(r'^([^=]+)(?:=(.+))?$', option)
+            if not match:
+                raise SystemExit(f'bad option: `{option}`')
+            name = match.group(1)
+            value = match.group(2)
+            if value is None:
+                value = 'TRUE'
+            copts[name] = value
+        if copts:
+            config_.conan.options = copts
+        elif config_.conan.options:
+            del config_.conan.options
+
         # TODO: Accept parameter to override settings.
         # TODO: Find path to profile.
         profile_path = pathlib.Path.home() / '.conan/profiles' / profile
         m = hashlib.sha256()
+        # TODO: Separate values with markers to disambiguate.
         m.update(profile_path.read_bytes())
         m.update(conanfile_path_.read_bytes())
+        for name, value in copts.items():
+            m.update(name.encode())
+            m.update(value.encode())
         id = m.hexdigest()
         old_flavors = state_.conan.flavors([])
         new_flavors = list({*config_.flavors([]), flavor_})
@@ -518,14 +547,16 @@ class Cupcake:
                 shutil.rmtree(conan_dir, ignore_errors=True)
                 diff_flavors = new_flavors
         conan_dir.mkdir(parents=True, exist_ok=True)
-        base_command = [
+        command = [
             CONAN, 'install', source_dir_, '--build', 'missing',
             '--output-folder', conan_dir,
             '--profile:build', profile, '--profile:host', profile,
         ]
+        for option in options:
+            command.extend(['--options', option])
         for flavor in diff_flavors:
             tee(
-                [*base_command, '--settings', f'build_type={FLAVORS[flavor_]}'],
+                [*command, '--settings', f'build_type={FLAVORS[flavor_]}'],
                 log=log_dir_ / 'conan',
                 cwd=conan_dir,
             )
