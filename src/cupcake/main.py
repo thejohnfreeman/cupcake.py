@@ -36,7 +36,9 @@ def tee(command, *args, log, **kwargs):
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
     )
     with open(log, 'wb') as logf:
-        line = ' '.join(shlex.quote(str(arg)) for arg in command).encode()
+        line = ' '.join(shlex.quote(str(arg)) for arg in command)
+        line += '\n'
+        line = line.encode()
         logf.write(line)
         sys.stdout.buffer.write(line)
         for line in proc.stdout:
