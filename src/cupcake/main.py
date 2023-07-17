@@ -776,7 +776,7 @@ class Cupcake:
         ])
 
     @cascade.command()
-    def test(self, config_, CMAKE, cmake_dir_, flavor_, cmake):
+    def test(self, config_, CMAKE, log_dir_, cmake_dir_, flavor_, cmake):
         """Test the selected flavor."""
         template = confee.resolve(None, config_.scripts.test, test_template)
         template = jinja2.Template(template)
@@ -789,7 +789,7 @@ class Cupcake:
         command = shlex.split(template.render(**context))
         env = os.environ.copy()
         env['CTEST_OUTPUT_ON_FAILURE'] = 'ON'
-        run(command, env=env)
+        tee(command, log=log_dir_ / 'test', env=env)
 
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
