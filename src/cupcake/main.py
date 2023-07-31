@@ -484,7 +484,7 @@ class Cupcake:
     # TODO: Add option to configure shared linkage.
     @cascade.option(
         '-o', 'options',
-        help='Conan options to set. Repeatable.',
+        help='Set a Conan option. Repeatable.',
         multiple=True,
     )
     def conan(
@@ -593,12 +593,12 @@ class Cupcake:
     )
     @cascade.option(
         '-D', 'variables',
-        help='CMake variables to set. Repeatable.',
+        help='Set a CMake variable. Repeatable.',
         multiple=True,
     )
     @cascade.option(
         '-U', 'unvariables',
-        help='CMake variables to unset. Repeatable.',
+        help='Unset a CMake variable. Repeatable.',
         multiple=True,
     )
     def cmake(
