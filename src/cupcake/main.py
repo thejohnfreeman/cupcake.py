@@ -853,12 +853,26 @@ class Cupcake:
         if name is None:
             name = prefix.name
 
+        if not re.match(r'[a-z][a-z0-9-]*', name):
+            raise SystemExit(f'name must contain only lowercase letters, numbers, and dashes: {name}')
+
+        NameTitle = name.title().replace('-', '')
+        name_snake_lower = name.replace('-', '_')
+        NAME_SNAKE_UPPER = name_snake_lower.upper()
+
+        context.update({
+            'name': name,
+            'NameTitle': NameTitle,
+            'name_snake_lower': name_snake_lower,
+            'NAME_SNAKE_UPPER': NAME_SNAKE_UPPER,
+        })
+
         for tname in loader.list_templates():
-            suffix = env.from_string(tname).render(**context, name=name)
+            suffix = env.from_string(tname).render(**context)
             path = pathlib.Path(prefix, suffix)
             path.parent.mkdir(parents=True, exist_ok=True)
             template = env.get_template(tname)
-            path.write_text(template.render(**context, name=name))
+            path.write_text(template.render(**context))
 
     @cascade.command()
     @cascade.argument('query')

@@ -1,7 +1,7 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake
 
-class {{ name | capitalize }}(ConanFile):
+class {{ NameTitle }}(ConanFile):
     name = '{{ name }}'
     version = '0.1.0'
 
