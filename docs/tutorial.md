@@ -59,8 +59,14 @@ to encapsulate CMake boilerplate and best practices and let us write
 minimal CMake.
 The template's Conan recipe includes a dependency on a Conan package named
 `cupcake` that exports the CMake module.
-That package is not available on any Artifactory right now,
-but you can add it to your local cache with `cupcake pack`,
+That package is available through [Redirectory]
+which you can add as a remote[^3]:
+
+```
+cupcake remote add redirectory https://conan.jfreeman.dev
+```
+
+Alternatively, you can add it to your local cache with `cupcake pack`,
 which works for GitHub URLs:
 
 ```
@@ -346,6 +352,7 @@ After packing `seedgen`, it is ready to use in another project:
 [library]: https://cmake.org/cmake/help/latest/manual/cmake-buildsystem.7.html#id32
 [archive]: https://cmake.org/cmake/help/latest/manual/cmake-buildsystem.7.html#id33
 [PCF]: https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#package-layout
+[Redirectory]: https://github.com/thejohnfreeman/redirectory
 
 [1]: https://cmake.org/cmake/help/latest/module/GenerateExportHeader.html
 [2]: https://cmake.org/cmake/help/latest/prop_tgt/MSVC_RUNTIME_LIBRARY.html
