@@ -9,7 +9,7 @@ packages = [{include = "cupcake", from = "src"}]
 cupcake = 'cupcake.main:main'
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 click = "^8.0.4"
 click-option-group = "^0.5.3"
 tomlkit = "^0.10.1"
