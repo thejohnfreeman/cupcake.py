@@ -16,6 +16,10 @@ jobs:
           submodules: true
       - name: install environment
         uses: ./.github/actions/install-nix
+      - name: add Redirectory
+        run: |
+          conan remote add redirectory https://conan.jfreeman.dev
+          # TODO: Possible to authenticate with ${GITHUB_TOKEN}?
       - name: export Conan packages from template-project-cpp
         run: |
           # They all depend on `cupcake`.
