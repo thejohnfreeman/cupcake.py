@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import functools
 import hashlib
 from importlib import resources
+import io
 import itertools
 import jinja2
 import json
@@ -30,20 +31,19 @@ def run(command, *args, **kwargs):
         raise SystemExit(proc.returncode)
     return proc
 
-def tee(command, *args, log, **kwargs):
+def tee(command, *args, stream, **kwargs):
     proc = subprocess.Popen(
         command, *args,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
     )
-    with open(log, 'wb') as logf:
-        line = ' '.join(shlex.quote(str(arg)) for arg in command)
-        line += '\n'
-        line = line.encode()
-        logf.write(line)
+    line = ' '.join(shlex.quote(str(arg)) for arg in command)
+    line += '\n'
+    line = line.encode()
+    stream.write(line)
+    sys.stdout.buffer.write(line)
+    for line in proc.stdout:
+        stream.write(line)
         sys.stdout.buffer.write(line)
-        for line in proc.stdout:
-            logf.write(line)
-            sys.stdout.buffer.write(line)
     if proc.wait() != 0:
         raise SystemExit(proc.returncode)
 
@@ -555,11 +555,12 @@ class Cupcake:
         for option in options:
             command.extend(['--options', option])
         for flavor in diff_flavors:
-            tee(
-                [*command, '--settings', f'build_type={FLAVORS[flavor_]}'],
-                log=log_dir_ / 'conan',
-                cwd=conan_dir,
-            )
+            with (log_dir_ / 'conan').open('wb') as stream:
+                tee(
+                    [*command, '--settings', f'build_type={FLAVORS[flavor_]}'],
+                    stream=stream,
+                    cwd=conan_dir,
+                )
         state_.conan.id = id
         state_.conan.flavors = new_flavors
         # TODO: Find layout. How?
@@ -747,7 +748,8 @@ class Cupcake:
             command.append(jobs)
         if target is not None:
             command.extend(['--target', target])
-        tee(command, log=log_dir_ / 'build')
+        with (log_dir_ / 'build').open('wb') as stream:
+            tee(command, stream=stream)
         return cmake
 
     @cascade.command()
@@ -791,7 +793,8 @@ class Cupcake:
         command = shlex.split(template.render(**context))
         env = os.environ.copy()
         env['CTEST_OUTPUT_ON_FAILURE'] = 'ON'
-        tee(command, log=log_dir_ / 'test', env=env)
+        with (log_dir_ / 'test').open('wb') as stream:
+            tee(command, stream=stream, env=env)
 
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
@@ -984,6 +987,18 @@ class Cupcake:
             context = pack_directory(parts.path)
         with context as path:
             run([CONAN, 'export', path])
+
+    @cascade.command()
+    @cascade.option('--remote', default='github')
+    def publish(self, CONAN, source_dir, remote):
+        stream = io.BytesIO()
+        tee([CONAN, 'export', source_dir], stream=stream)
+        line = stream.getvalue().splitlines()[-1]
+        reference = re.match(rb'([^/]+/[^@]+@[^/]+/[^:]+): Exported revision: ', line)
+        if not reference:
+            raise SystemExit('cannot find reference in stdout')
+        reference = reference.group(1)
+        run([CONAN, 'upload', '--remote', remote, reference])
 
     @cascade.command()
     def clean(self, build_dir_path_):
