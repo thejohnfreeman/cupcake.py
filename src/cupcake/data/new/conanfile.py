@@ -4,6 +4,10 @@ from conan.tools.cmake import CMake
 class {{ NameTitle }}(ConanFile):
     name = '{{ name }}'
     version = '0.1.0'
+    {% if github %}
+    default_user = 'github'
+    default_channel = '{{ github }}'
+    {% endif %}
 
     license = '{{ license }}'
     {% if author %}
@@ -17,7 +21,7 @@ class {{ NameTitle }}(ConanFile):
     options = {'shared': [True, False], 'fPIC': [True, False]}
     default_options = {'shared': False, 'fPIC': True}
 
-    requires = ['cupcake/0.2.0@github/thejohnfreeman']
+    requires = ['cupcake/0.4.0@github/thejohnfreeman']
     test_requires = ['doctest/2.4.8']
     generators = ['CMakeDeps', 'CMakeToolchain']
 
