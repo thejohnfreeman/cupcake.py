@@ -799,6 +799,15 @@ class Cupcake:
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
     @cascade.option(
+        '--library/--no-library', help='Whether to export a library.', default=True,
+    )
+    @cascade.option(
+        '--executable/--no-executable', help='Whether to export an executable.', default=True,
+    )
+    @cascade.option(
+        '--tests/--no-tests', help='Whether to include tests.', default=True,
+    )
+    @cascade.option(
         '--name', help='Package name. Default is the directory name.'
     )
     @cascade.option(
@@ -810,7 +819,7 @@ class Cupcake:
         '--author',
         help='''
         The author name and/or email address,
-        in the format "First Last <user@domain.com>".
+        in the format "First Last <user@host.com>".
         The default is taken from `git config`.
         ''',
     )
@@ -822,7 +831,18 @@ class Cupcake:
         help='Ignore whether directory is empty.',
         is_flag=True,
     )
-    def new(self, path, name, license, author, github, force):
+    def new(
+        self,
+        path,
+        library: bool,
+        executable: bool,
+        tests: bool,
+        name,
+        license,
+        author,
+        github,
+        force,
+    ):
         """Create a new project."""
         loader = jinja2.PackageLoader('cupcake', 'data/new')
         env = jinja2.Environment(
@@ -841,10 +861,11 @@ class Cupcake:
             ).stdout.decode().strip()
             author = f'{username} <{email}>'
 
-        # TODO: Take these values from a user config or Git.
-        # $ git config user.name
-        # $ git config user.email
+        # TODO: Take default license and github from user config.
         context = dict(
+            with_library=library,
+            with_executable=executable,
+            with_tests=tests,
             license=license,
             author=author,
             github=github,
@@ -872,6 +893,14 @@ class Cupcake:
 
         for tname in loader.list_templates():
             suffix = env.from_string(tname).render(**context)
+            if not library and suffix.startswith('include/'):
+                continue
+            if not library and suffix.startswith('src/lib'):
+                continue
+            if not executable and suffix.startswith('src/') and not suffix.startswith('src/lib'):
+                continue
+            if not tests and suffix.startswith('tests/'):
+                continue
             path = pathlib.Path(prefix, suffix)
             path.parent.mkdir(parents=True, exist_ok=True)
             template = env.get_template(tname)
