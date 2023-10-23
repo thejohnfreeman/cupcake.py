@@ -5,8 +5,8 @@ class {{ NameTitle }}(ConanFile):
     name = '{{ name }}'
     version = '0.1.0'
     {% if github %}
-    default_user = 'github'
-    default_channel = '{{ github }}'
+    user = 'github'
+    channel = '{{ github }}'
     {% endif %}
 
     license = '{{ license }}'
