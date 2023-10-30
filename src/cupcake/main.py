@@ -584,7 +584,7 @@ class Cupcake:
         default=None,
     )
     @cascade.option(
-        '--with-tests/--without-tests',
+        '--tests/--no-tests',
         help='Whether to include tests.',
         default=None,
     )
@@ -615,7 +615,7 @@ class Cupcake:
         conan,
         generator,
         shared,
-        with_tests,
+        tests,
         prefixes,
         variables,
         unvariables,
@@ -631,7 +631,7 @@ class Cupcake:
 
         generator = confee.resolve(generator, config_.cmake.generator, None)
         shared = confee.resolve(shared, config_.cmake.shared, False)
-        with_tests = confee.resolve(with_tests, config_.cmake.tests, True)
+        tests = confee.resolve(tests, config_.cmake.tests, True)
         prefixes = confee.resolve(prefixes or None, config_.cmake.prefixes, [])
         # TODO: Convenience API for hashing identities.
         m = hashlib.sha256()
@@ -643,7 +643,7 @@ class Cupcake:
             m.update(generator.encode())
         if shared:
             m.update(b'shared')
-        if with_tests:
+        if tests:
             m.update(b'tests')
         for p in prefixes:
             m.update(p.encode())
@@ -691,8 +691,8 @@ class Cupcake:
         cmake_args['CMAKE_INSTALL_PREFIX'] = prefix_
         if conan is not None:
             cmake_args['CMAKE_TOOLCHAIN_FILE:FILEPATH'] = conan.toolchain()
-        if with_tests is not None:
-            cmake_args['BUILD_TESTING'] = 'ON' if with_tests else 'OFF'
+        if tests is not None:
+            cmake_args['BUILD_TESTING'] = 'ON' if tests else 'OFF'
         if prefixes:
             cmake_args['CMAKE_PREFIX_PATH'] = ';'.join(prefixes)
         if multiConfig:
