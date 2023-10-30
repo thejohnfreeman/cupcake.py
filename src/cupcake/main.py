@@ -136,6 +136,19 @@ key = functools.cmp_to_key(
     lambda a, b: compare_version(a, b)
 )
 
+def parse_options(options, default):
+    adds = {}
+    for option in options:
+        match = re.match(r'^([^=]+)(?:=(.+))?$', option)
+        if not match:
+            raise SystemExit(f'bad option: `{option}`')
+        name = match.group(1)
+        value = match.group(2)
+        if value is None:
+            value = default
+        adds[name] = value
+    return adds
+
 PATTERN_GITHUB_PATH = r'/([^/]+)/([^/]+)(?:/tree/[^/]+(.+))?'
 
 @contextmanager
@@ -509,20 +522,8 @@ class Cupcake:
         # We must start with `config.conan.options` (default `{}`),
         # override with `options`,
         # and then write the result to `config.conan.options`.
-        copts = config_.conan.options({})
-        for option in options:
-            match = re.match(r'^([^=]+)(?:=(.+))?$', option)
-            if not match:
-                raise SystemExit(f'bad option: `{option}`')
-            name = match.group(1)
-            value = match.group(2)
-            if value is None:
-                value = 'TRUE'
-            copts[name] = value
-        if copts:
-            config_.conan.options = copts
-        elif config_.conan.options:
-            del config_.conan.options
+        adds = parse_options(options, 'True')
+        copts = confee.merge(adds, [], config_.conan.options, {})
 
         # TODO: Accept parameter to override settings.
         # TODO: Find path to profile.
@@ -625,22 +626,8 @@ class Cupcake:
         # override with `variables`,
         # remove `unvariables`,
         # and then write the result to `config.cmake.variables`.
-        cvars = config_.cmake.variables({})
-        for variable in variables:
-            match = re.match(r'^([^=]+)(?:=(.+))?$', variable)
-            if not match:
-                raise SystemExit(f'bad variable: `{variable}`')
-            name = match.group(1)
-            value = match.group(2)
-            if value is None:
-                value = 'TRUE'
-            cvars[name] = value
-        for name in unvariables:
-            cvars.pop(name, None)
-        if cvars:
-            config_.cmake.variables = cvars
-        elif config_.cmake.variables:
-            del config_.cmake.variables
+        adds = parse_options(variables, 'TRUE')
+        cvars = confee.merge(adds, unvariables, config_.cmake.variables, {})
 
         generator = confee.resolve(generator, config_.cmake.generator, None)
         shared = confee.resolve(shared, config_.cmake.shared, False)
