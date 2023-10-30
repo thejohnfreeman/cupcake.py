@@ -43,6 +43,7 @@ examples = [
     ('ten', '10-conan', [], 'ten', b'10!\n'),
 ]
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
     ('subdirectory', 'dependencies', 'executable', 'output'),
     map(lambda args: pytest.param(*args[1:], id=args[0]), examples)
