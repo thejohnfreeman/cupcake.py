@@ -259,16 +259,20 @@ class CMake:
     def configure(self, build_dir, source_dir, generator, variables={}):
         """
         source_dir : path-like
-            if relative, must be relative to build_dir
+            If relative, must be relative to build_dir.
         """
-        variables = {
-            'CMAKE_EXPORT_COMPILE_COMMANDS': 'ON',
-            **variables,
-        }
+        variables = dict(variables)
         args = [f'-D{name}={value}' for name, value in variables.items()]
         args = [*args, source_dir]
         if generator is not None:
             args = ['-G', generator, *args]
+            # CMake will warn when this variable is unused by the generator.
+            # https://cmake.org/cmake/help/latest/variable/CMAKE_EXPORT_COMPILE_COMMANDS.html
+            # TODO: Let `cupcake_project()` set a different default for this
+            # variable, and Cupcake can just link it in the build directory if
+            # it is found after the `cmake` step.
+            if re.search('Makefiles|Ninja', generator):
+                variables['CMAKE_EXPORT_COMPILE_COMMANDS'] = 'ON'
         run([self.CMAKE, *args], cwd=build_dir)
 
 class CMakeLists:
