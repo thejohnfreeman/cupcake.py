@@ -314,7 +314,7 @@ class CMakeLists:
             shutil.copy(cml_out.name, self.path)
 
 test_template = """
-{{ cmake }} --build {{ cmakeDir }}
+'{{ cmake }}' --build '{{ cmakeDir }}'
 {% if multiConfig %} --config {{ flavor }} {% endif %}
 --target {% if multiConfig %} RUN_TESTS {% else %} test {% endif %}
 """
