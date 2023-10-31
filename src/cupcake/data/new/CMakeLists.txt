@@ -8,7 +8,7 @@ project({{ name }}
   LANGUAGES CXX
 )
 
-find_package(cupcake 0.4.0 REQUIRED)
+find_package(cupcake 0.4.1 REQUIRED)
 
 cupcake_project()
 
