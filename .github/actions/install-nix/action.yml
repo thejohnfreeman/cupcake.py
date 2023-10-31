@@ -5,10 +5,6 @@ runs:
   using: composite
   steps:
     - name: install Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
-    - name: install Python packages
       uses: ./.github/actions/install-python
     - name: check environment
       shell: bash
