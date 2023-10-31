@@ -31,4 +31,4 @@ jobs:
           poetry install
       - name: test project
         run: |
-          poetry run pytest -n auto
+          poetry run pytest -n auto --ignore submodules
