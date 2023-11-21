@@ -404,6 +404,7 @@ class Cupcake:
     @cascade.option(
         '--source-dir', '-S',
         help='Absolute path or relative to current directory.',
+        metavar='PATH',
         default='.',
     )
     def source_dir_(self, source_dir):
@@ -414,6 +415,7 @@ class Cupcake:
         '--config',
         default='.cupcake.toml',
         help='Absolute path or relative to source directory.',
+        metavar='PATH',
     )
     def config_(self, source_dir_, config):
         path = source_dir_ / config
@@ -431,7 +433,8 @@ class Cupcake:
     @cascade.value()
     @cascade.option(
         '--build-dir', '-B',
-        help='Absolute path or relative to source directory.'
+        help='Absolute path or relative to source directory.',
+        metavar='PATH',
     )
     def build_dir_path_(self, source_dir_, config_, build_dir) -> pathlib.Path:
         """
@@ -479,7 +482,7 @@ class Cupcake:
 
     @cascade.value()
     @cascade.option(
-        '--prefix', help='Prefix at which to install this package.'
+        '--prefix', help='Prefix at which to install this package.', metavar='PATH',
     )
     def prefix_(self, config_, source_dir_, prefix):
         prefix = confee.resolve(prefix, config_.prefix, '.install')
@@ -497,11 +500,12 @@ class Cupcake:
         return conanfile_path
 
     @cascade.command()
-    @cascade.option('--profile', help='Name of Conan profile.')
+    @cascade.option('--profile', help='Name of Conan profile.', metavar='NAME')
     # TODO: Add option to configure shared linkage.
     @cascade.option(
         '-o', 'options',
         help='Set a Conan option. Repeatable.',
+        metavar='NAME[=VALUE]',
         multiple=True,
     )
     def conan(
@@ -581,7 +585,11 @@ class Cupcake:
         return state_.conan
 
     @cascade.command()
-    @cascade.option('--generator', '-G', help='Name of CMake generator.')
+    @cascade.option(
+        '--generator', '-G',
+        help='Name of CMake generator.',
+        metavar='NAME',
+    )
     @cascade.option(
         '--shared/--static',
         help='Whether to build shared libraries.',
@@ -595,16 +603,19 @@ class Cupcake:
     @cascade.option(
         '-P', 'prefixes',
         help='Prefix to search for installed packages. Repeatable.',
+        metavar='PATH',
         multiple=True,
     )
     @cascade.option(
         '-D', 'variables',
         help='Set a CMake variable. Repeatable.',
+        metavar='NAME[=VALUE]',
         multiple=True,
     )
     @cascade.option(
         '-U', 'unvariables',
         help='Unset a CMake variable. Repeatable.',
+        metavar='NAME',
         multiple=True,
     )
     def cmake(
