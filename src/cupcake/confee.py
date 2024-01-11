@@ -184,10 +184,14 @@ class Value:
 class ValueProxy:
     def __init__(self, typ, parent, name, value):
         _SELVES[self] = Value(typ, parent, name, value)
-    def __getattr__(self, name):
+    def __getitem__(self, name):
         return _SELVES[self].get(name)
+    def __getattr__(self, name):
+        return self[name]
+    def __setitem__(self, name, value):
+        _SELVES[self].set(name, value)
     def __setattr__(self, name, value):
-        return _SELVES[self].set(name, value)
+        self[name] = value
     def __delattr__(self, name):
         return _SELVES[self].delete(name)
     def __call__(self, default=None, *args, **kwargs):
@@ -195,6 +199,9 @@ class ValueProxy:
         return default if value is _MISSING else value
     def __bool__(self):
         return _SELVES[self].value is not _MISSING
+    # TODO: Add iteration methods, in case underlying type is iterable,
+    # that yield proxies of items. Consider case when trying to iterate over
+    # array that does not exist, but would be an empty array by default.
 
 def set(proxy, value):
     self = _SELVES[proxy]
