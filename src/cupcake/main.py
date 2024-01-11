@@ -755,6 +755,7 @@ class Cupcake:
     @cascade.argument('executable', required=False)
     @cascade.argument('arguments', nargs=-1)
     def exe(self, CMAKE, cmake_dir_, flavor_, cmake, executable, arguments):
+        """Execute an executable target."""
         target = 'execute'
         if executable is not None:
             target += '-' + executable
@@ -1026,6 +1027,7 @@ class Cupcake:
     @cascade.command()
     @cascade.option('--remote', default='github')
     def publish(self, CONAN, source_dir, remote):
+        """Upload package to Conan remote."""
         stream = io.BytesIO()
         tee([CONAN, 'export', source_dir], stream=stream)
         line = stream.getvalue().splitlines()[-1]
