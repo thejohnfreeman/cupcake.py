@@ -165,6 +165,20 @@ def pack_github(path):
         run(['git', 'clone', f'https://github.com/{user}/{project}', tmp])
         yield tmp + suffix
 
+def update_dependency(metadata, group, name, f):
+    dependencies = metadata.dependencies[group]([])
+    i = next((i for i, d in enumerate(dependencies) if d['name'] == name), -1)
+    if i < 0:
+        before = None
+    else:
+        before = dependencies[i]
+        del dependencies[i:i+1]
+    after = f(before)
+    if after is not None:
+        dependencies.append(after)
+    dependencies.sort(key=lambda item: item['name'])
+    metadata.dependencies[group] = dependencies
+
 class SearchResult:
     """Representation for a Conan package search result."""
 
@@ -227,6 +241,26 @@ class Conan:
             results = sorted(results, key=SearchResult.key, reverse=True)
             return results
 
+    def get_cmake_names(self, rref):
+        conanfile = resources.as_file(
+            resources.files('cupcake')
+            .joinpath('data')
+            .joinpath('cmake_names.py')
+        )
+        with conanfile as conanfile:
+            with tempfile.TemporaryDirectory() as build_dir:
+                build_dir = pathlib.Path(build_dir)
+                run([
+                    self.CONAN, 'install',
+                    '--build', 'missing',
+                    '--install-folder', build_dir,
+                    '--output-folder', build_dir,
+                    conanfile,
+                    '--options', f'requirement={rref}',
+                ], stdout=subprocess.DEVNULL)
+                with (build_dir / 'output.json').open('r') as out:
+                    names = json.load(out)
+        return names
 
 class CMake:
     def __init__(self, CMAKE):
@@ -274,44 +308,6 @@ class CMake:
             if re.search('Makefiles|Ninja', generator):
                 variables['CMAKE_EXPORT_COMPILE_COMMANDS'] = 'ON'
         run([self.CMAKE, *args], cwd=build_dir)
-
-class CMakeLists:
-    def __init__(self, path):
-        self.path = path
-
-    def import_(self, package, version):
-        MODE_FIND = 0
-        MODE_INSERT = 1
-        MODE_FINISH = 2
-
-        added_line = f'cupcake_find_package({package} {version})\n'
-        with tempfile.NamedTemporaryFile(mode='w') as cml_out:
-            with self.path.open('r') as cml_in:
-                mode = MODE_FIND
-                for line in cml_in:
-                    if mode == MODE_FIND and re.match(r'^# imports$', line):
-                        mode = MODE_INSERT
-                    elif mode == MODE_INSERT:
-                        is_comment = re.match(r'^#', line)
-                        match = re.match(r'^cupcake_find_package\((\w+)', line)
-                        skip = (
-                            is_comment or
-                            (match and match.group(1) < package)
-                        )
-                        # Would love to have goto for this situation.
-                        if match and match.group(1) == package:
-                            mode = MODE_FINISH
-                        elif not skip:
-                            cml_out.write(added_line)
-                            mode = MODE_FINISH
-                    cml_out.write(line)
-            if mode == MODE_INSERT:
-                cml_out.write(added_line)
-            elif mode == MODE_FIND:
-                print(f'nowhere to insert call to `find_package` in {self.path}')
-                return
-            cml_out.flush()
-            shutil.copy(cml_out.name, self.path)
 
 test_template = """
 '{{ cmake }}' --build '{{ cmakeDir }}'
@@ -921,68 +917,75 @@ class Cupcake:
             print(f'{remote:20} {result}')
 
     @cascade.command()
-    # TODO: Mutually exclusive option group for category.
+    # TODO: Mutually exclusive option group to choose dependency group.
     @cascade.option(
         '--test', '-T', 'as_test', is_flag=True, help='As a test requirement.',
     )
-    @cascade.argument('package')
-    def add(self, CONAN, source_dir_, conanfile_path_, as_test, package):
+    @cascade.argument('name')
+    def add(self, CONAN, source_dir_, conanfile_path_, as_test, name):
         """Add a requirement."""
         # TODO: Support conanfile.txt.
         if conanfile_path_.name != 'conanfile.py':
             raise SystemExit('missing conanfile.py')
-        results = Conan(CONAN).search(package)
+        results = Conan(CONAN).search(name)
         if len(results) < 1:
             raise SystemExit('no matches found')
         version = results[0].version
+
+        # Update the recipe.
         # TODO: Add --upgrade option.
         with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
             tree = cst.parse_module(conanfile_path_.read_bytes())
             tree = tree.visit(AddRequirement(
-                'test_requires' if as_test else 'requires', package, version,
+                'test_requires' if as_test else 'requires', name, version,
             ))
             recipe_out.write(tree.code)
             recipe_out.flush()
             shutil.copy(recipe_out.name, conanfile_path_)
 
-        # Have to jump through some hoops to get the `cmake_file_name`
-        # that we must pass to `find_package`.
-        loader = jinja2.PackageLoader('cupcake', 'data')
-        env = jinja2.Environment(
-            loader=loader,
-            keep_trailing_newline=True,
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-        template = env.get_template('cmake_file_name.py')
-        with tempfile.TemporaryDirectory() as tmp:
-            cwd = pathlib.Path(tmp)
-            stream = template.stream(dict(ref=f'{package}/{version}'))
-            with (cwd / 'conanfile.py').open('w') as file:
-                stream.dump(file)
-            run([CONAN, 'install', '.', '--build', 'missing'], cwd=cwd)
-            cmake_file_name = (cwd / 'cmake_file_name.txt').read_text()
+        # Find the CMake names.
+        names = Conan(CONAN).get_cmake_names(f'{name}/{version}')
 
-        # Add an import.
-        cml = source_dir_
-        if as_test:
-            cml /= 'tests'
-        cml /= 'CMakeLists.txt'
-        CMakeLists(cml).import_(cmake_file_name, version)
+        # Find the cupcake.json.
+        path = source_dir_ / 'cupcake.json'
+        metadata = confee.read(path)
+
+        # Add or update the dependency.
+        group = 'test' if as_test else 'main'
+        def add_dependency(before):
+            if before is not None:
+                # TODO: Update existing dependency.
+                raise SystemExit(f'{name} already in dependencies.{group}')
+            return {
+                'name': name,
+                'file': names['file'],
+                'targets': names['targets']
+            }
+        update_dependency(metadata, group, name, add_dependency)
+
+        # Update cupcake.json.
+        confee.write(metadata)
 
     @cascade.command()
-    @cascade.argument('package')
-    def remove(self, conanfile_path_, package):
+    @cascade.argument('name')
+    def remove(self, conanfile_path_, source_dir_, name):
         """Remove a requirement."""
         # TODO: Support conanfile.txt.
         if conanfile_path_.name != 'conanfile.py':
             raise SystemExit('missing conanfile.py')
         with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
             tree = cst.parse_module(conanfile_path_.read_bytes())
-            tree = tree.visit(RemoveRequirement(package))
+            tree = tree.visit(RemoveRequirement(name))
             recipe_out.write(tree.code)
             recipe_out.flush()
             shutil.copy(recipe_out.name, conanfile_path_)
+
+        # Find the cupcake.json.
+        path = source_dir_ / 'cupcake.json'
+        metadata = confee.read(path)
+        update_dependency(metadata, 'main', name, const(None))
+        update_dependency(metadata, 'test', name, const(None))
+        confee.write(metadata)
 
     @cascade.command()
     @cascade.argument('url', default='.')
