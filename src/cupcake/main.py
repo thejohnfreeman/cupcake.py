@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 
 from cupcake import cascade, confee
@@ -1039,4 +1040,10 @@ class Cupcake:
         """Remove the build directory."""
         shutil.rmtree(build_dir_path_, ignore_errors=True)
 
-Cupcake()
+def main():
+    start = time.time()
+    try:
+        Cupcake()
+    finally:
+        finish = time.time()
+        print(f'{finish - start:.3}s')
