@@ -309,7 +309,7 @@ class CMake:
                 variables['CMAKE_EXPORT_COMPILE_COMMANDS'] = 'ON'
         run([self.CMAKE, *args], cwd=build_dir)
 
-test_template = """
+TEST_TEMPLATE_ = """
 '{{ cmake }}' --build '{{ cmakeDir }}'
 {% if multiConfig %} --config {{ flavor }} {% endif %}
 --target {% if multiConfig %} RUN_TESTS {% else %} test {% endif %}
@@ -780,7 +780,7 @@ class Cupcake:
     @cascade.command()
     def test(self, config_, CMAKE, log_dir_, cmake_dir_, flavor_, cmake):
         """Test the selected flavor."""
-        template = confee.resolve(None, config_.scripts.test, test_template)
+        template = confee.resolve(None, config_.scripts.test, TEST_TEMPLATE_)
         template = jinja2.Template(template)
         context = {
             'cmake': CMAKE,
