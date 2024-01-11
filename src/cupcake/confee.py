@@ -34,13 +34,28 @@ but destructors are called all the time, automatically,
 not just by the programmer. We must ignore calls to the destructor.
 """
 
+import contextlib
 import copy
 import json
 import pathlib
+import tempfile
 import tomlkit
 
 _MISSING = object()
 _SELVES = {}
+
+@contextlib.contextmanager
+def atomic(pathlike, *args, **kwargs):
+    dst = pathlib.Path(pathlike)
+    kwargs['delete'] = False
+    # Write to temporary file and then atomically move into place.
+    with tempfile.NamedTemporaryFile(*args, **kwargs) as file:
+        yield file
+    src = pathlib.Path(file.name)
+    try:
+        src.replace(dst)
+    finally:
+        src.unlink(missing_ok=True)
 
 def resolve(override, proxy, default):
     """Resolve a configuration value.
@@ -125,7 +140,7 @@ def read(pathlike, typ=None):
 def write(proxy):
     self = _SELVES[proxy]
     path = self.name
-    with path.open('w') as file:
+    with atomic(path, 'w') as file:
         self.typ.write(file, self.value)
 
 class Value:
