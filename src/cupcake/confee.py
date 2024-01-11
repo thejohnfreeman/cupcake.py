@@ -59,11 +59,11 @@ def resolve(override, proxy, default):
     self.parent.set(self.name, override)
     return override
 
-        # Variables are a little unique.
-        # We must start with `config.cmake.variables` (default `{}`),
-        # override with `variables`,
-        # remove `unvariables`,
-        # and then write the result to `config.cmake.variables`.
+# Variables are a little unique.
+# We must start with `config.cmake.variables` (default `{}`),
+# override with `variables`,
+# remove `unvariables`,
+# and then write the result to `config.cmake.variables`.
 def merge(adds, removes, proxy, default):
     """Compile a set of options.
 
