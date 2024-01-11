@@ -1,9 +1,5 @@
-# imports
-cupcake_find_package(doctest 2.4 PRIVATE)
-
-target_link_libraries(${PROJECT_NAME}.dependencies.test INTERFACE
-  doctest::doctest
-)
+cupcake_find_packages(test PRIVATE)
+cupcake_link_libraries(${PROJECT_NAME}.dependencies.test INTERFACE test)
 
 cupcake_add_test_executable({{ name }} {{ name }}.cpp)
 target_link_libraries(${this} PUBLIC

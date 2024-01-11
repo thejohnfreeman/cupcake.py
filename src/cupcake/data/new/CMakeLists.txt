@@ -8,13 +8,12 @@ project({{ name }}
   LANGUAGES CXX
 )
 
-find_package(cupcake 0.4.1 REQUIRED)
+find_package(cupcake REQUIRED)
 
 cupcake_project()
 
-# imports
-target_link_libraries(${PROJECT_NAME}.dependencies PUBLIC
-)
+cupcake_find_packages(main)
+cupcake_link_libraries(${PROJECT_NAME}.dependencies.main INTERFACE main)
 
 {% if with_library %}
 cupcake_add_library({{ name }})
