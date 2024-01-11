@@ -35,6 +35,7 @@ not just by the programmer. We must ignore calls to the destructor.
 """
 
 import copy
+import json
 import pathlib
 import tomlkit
 
@@ -85,24 +86,50 @@ def merge(adds, removes, proxy, default):
         set(proxy, group)
     return group
 
-def read(pathlike):
+class TomlType:
+    def read(self, file):
+        return tomlkit.load(file)
+    def write(self, file, value):
+        tomlkit.dump(value, file)
+    def root(self):
+        return tomlkit.document()
+    def object(self):
+        return tomlkit.table()
+
+class JsonType:
+    def read(self, file):
+        return json.load(file)
+    def write(self, file, value):
+        json.dump(value, file)
+    def root(self):
+        return {}
+    def object(self):
+        return {}
+
+def read(pathlike, typ=None):
     path = pathlib.Path(pathlike)
+    if typ is None:
+        if path.suffix == '.json':
+            typ = JsonType()
+        # Default is TOML.
+        typ = TomlType()
     # TODO: try-except?
     if path.exists():
-        with path.open('r') as f:
-            root = tomlkit.load(f)
+        with path.open('r') as file:
+            root = typ.read(file)
     else:
-        root = tomlkit.document()
-    return ValueProxy(None, path, root)
+        root = typ.root()
+    return ValueProxy(typ, None, path, root)
 
 def write(proxy):
     self = _SELVES[proxy]
     path = self.name
-    with path.open('w') as f:
-        tomlkit.dump(self.value, f)
+    with path.open('w') as file:
+        self.typ.write(file, self.value)
 
 class Value:
-    def __init__(self, parent, name, value):
+    def __init__(self, typ, parent, name, value):
+        self.typ = typ
         self.parent = parent
         self.name = name
         self.value = value
@@ -116,12 +143,12 @@ class Value:
                 if self.value is _MISSING
                 else self.value.get(name, _MISSING)
             )
-            proxy = ValueProxy(self, name, value)
+            proxy = ValueProxy(self.typ, self, name, value)
             self.members[name] = proxy
         return proxy
     def set(self, name, value):
         if self.value is _MISSING:
-            self.parent.set(self.name, tomlkit.table())
+            self.parent.set(self.name, self.typ.object())
         self.value[name] = value
         proxy = self.members.get(name, None)
         if proxy is not None:
@@ -139,8 +166,8 @@ class Value:
             del _SELVES[proxy]
 
 class ValueProxy:
-    def __init__(self, parent, name, value):
-        _SELVES[self] = Value(parent, name, value)
+    def __init__(self, typ, parent, name, value):
+        _SELVES[self] = Value(typ, parent, name, value)
     def __getattr__(self, name):
         return _SELVES[self].get(name)
     def __setattr__(self, name, value):

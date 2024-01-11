@@ -2,9 +2,9 @@ import pytest
 
 from cupcake import confee
 
-@pytest.fixture()
-def config():
-    return confee.read('/does/not/exist')
+@pytest.fixture(params=['toml', 'json'])
+def config(request):
+    return confee.read(f'/does/not/exist.{request.param}')
 
 def test_empty(config):
     assert(config() == {})
