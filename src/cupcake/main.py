@@ -25,7 +25,7 @@ import urllib.parse
 from cupcake import cascade, confee
 
 def run(command, *args, **kwargs):
-    # TODO: Print this in a special color.
+    # TODO: Print this in a special color if writing to terminal.
     print(' '.join(shlex.quote(str(arg)) for arg in command), flush=True)
     proc = subprocess.run(command, *args, **kwargs)
     if proc.returncode != 0:
@@ -464,6 +464,8 @@ class Cupcake:
         path = build_dir_ / 'cupcake.toml'
         return confee.read(path)
 
+    # TODO: Case-insensitive flavor name.
+    # TODO: Mutex options --release and --debug.
     @cascade.value()
     @cascade.option(
         '--flavor',
@@ -753,6 +755,7 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('executable', required=False)
+    # TODO: No way to pass arguments to default executable.
     @cascade.argument('arguments', nargs=-1)
     def exe(self, CMAKE, cmake_dir_, flavor_, cmake, executable, arguments):
         """Execute an executable target."""
@@ -918,6 +921,7 @@ class Cupcake:
             remote = remote if remote else '<local>'
             print(f'{remote:20} {result}')
 
+    # TODO: Handle reference ending in '@'.
     @cascade.command()
     # TODO: Mutually exclusive option group to choose dependency group.
     @cascade.option(
