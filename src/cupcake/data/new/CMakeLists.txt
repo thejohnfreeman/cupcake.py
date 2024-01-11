@@ -17,7 +17,7 @@ cupcake_link_libraries(${PROJECT_NAME}.dependencies.main INTERFACE main)
 
 {% if with_library %}
 cupcake_add_library({{ name }})
-target_link_libraries(${this} PUBLIC ${PROJECT_NAME}.dependencies)
+target_link_libraries(${this} PUBLIC ${PROJECT_NAME}.dependencies.main)
 
 {% endif %}
 {% if with_executable %}
@@ -25,7 +25,7 @@ cupcake_add_executable({{ name }})
 {% if with_library %}
 target_link_libraries(${this} PRIVATE ${PROJECT_NAME}.lib{{ name }})
 {% else %}
-target_link_libraries(${this} PRIVATE ${PROJECT_NAME}.dependencies)
+target_link_libraries(${this} PRIVATE ${PROJECT_NAME}.dependencies.main)
 {% endif %}
 
 {% endif %}
