@@ -111,8 +111,9 @@ def read(pathlike, typ=None):
     if typ is None:
         if path.suffix == '.json':
             typ = JsonType()
-        # Default is TOML.
-        typ = TomlType()
+        else:
+            # Default is TOML.
+            typ = TomlType()
     # TODO: try-except?
     if path.exists():
         with path.open('r') as file:
