@@ -38,6 +38,7 @@ import contextlib
 import copy
 import json
 import pathlib
+import shutil
 import tempfile
 import tomlkit
 
@@ -53,7 +54,8 @@ def atomic(pathlike, *args, **kwargs):
         yield file
     src = pathlib.Path(file.name)
     try:
-        src.replace(dst)
+        # https://stackoverflow.com/a/21116654/618906
+        shutil.move(src, dst)
     finally:
         src.unlink(missing_ok=True)
 
