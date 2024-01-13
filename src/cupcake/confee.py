@@ -163,6 +163,9 @@ class Value:
             self.members[name] = proxy
         return proxy
     def set(self, name, value):
+        # TOML has no null value.
+        if value is None:
+            return self.delete(name)
         if self.value is _MISSING:
             self.parent.set(self.name, self.typ.object())
         self.value[name] = value
