@@ -21,7 +21,7 @@ class {{ NameTitle }}(ConanFile):
     options = {'shared': [True, False], 'fPIC': [True, False]}
     default_options = {'shared': False, 'fPIC': True}
 
-    requires = ['cupcake/0.4.1@github/thejohnfreeman']
+    requires = ['cupcake/0.5.0@github/thejohnfreeman']
     test_requires = ['doctest/2.4.8']
     generators = ['CMakeDeps', 'CMakeToolchain']
 

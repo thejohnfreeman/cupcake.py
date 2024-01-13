@@ -1,1 +1,1 @@
-{"dependencies":{"test":[{"name":"doctest","targets":["doctest::doctest"]}]}}
+{"dependencies":{"test":[{"name":"doctest","file":"doctest","targets":["doctest::doctest"]}]}}

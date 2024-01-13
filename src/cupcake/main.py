@@ -268,6 +268,12 @@ class CMake:
         self.CMAKE = CMAKE
 
     def is_multi_config(self, generator):
+        """
+        Configure a tiny project
+        using the CMake file API
+        in a temporary directory
+        to find out whether the generator is multi-config.
+        """
         with tempfile.TemporaryDirectory() as cmake_dir:
             cmake_dir = pathlib.Path(cmake_dir)
             api_dir = cmake_dir / '.cmake/api/v1'
@@ -665,38 +671,43 @@ class Cupcake:
             m.update(name.encode())
             m.update(value.encode())
         id = m.hexdigest()
-        # We need to know what flavors are configured in CMake after this
-        # step.
-        # If we find that the generator is single-config and the CMake state
-        # ID is the same, then we can add the new flavor to the existing
-        # CMake state flavors.
-        # If we find that the generator is multi-config, then we'll use all
-        # the configured flavors (which matches the Conan state flavors).
-        # Otherwise, the generator is single-config and the CMake state ID is
-        # different, so only the new flavor is valid.
-        # We start with that assumption, and change the value only when
-        # we can prove one of the above conditions.
-        new_flavors = [flavor_]
-        cmake_dir = build_dir_ / 'cmake'
-        if state_.cmake:
-            old_flavors = state_.cmake.flavors([])
-            multiConfig = state_.cmake.multiConfig()
-            if state_.cmake.id() == id:
-                if flavor_ in old_flavors:
-                    return state_.cmake
-                if not multiConfig:
-                    # We're going to configure an additional single-config
-                    # build directory. The others are not invalidated.
-                    new_flavors = [*old_flavors, flavor_]
+
+        # Check for the conditions that enable a short-circuit.
+        if state_.cmake.id() == id and flavor_ in state_.cmake.flavors([]):
+            return state_.cmake
+
+        # Once CMake is configured, its binary directory cannot be moved,
+        # but our choice of binary directory depends on whether the
+        # generator is multi-config.
+        multiConfig = (
+            state_.cmake.multiConfig()
+            if state_.cmake.multiConfig
+            and state_.cmake.generator() == generator else
+            CMake(CMAKE).is_multi_config(generator)
+        )
+
+        # The config names the set of interesting flavors.
+        cflavors = tuple(set(config_.cmake.flavors([])) | set([flavor_]))
+        config_.cmake.flavors = cflavors
+
+        # The state names the subset of interesting flavors
+        # that are configured in the build directory.
+        # In a multi-config scenario, they should be an equal subset.
+        # In a single-config scenario,
+        # flavors are configured only when selected.
+        if multiConfig:
+            sflavors = cflavors
+        elif state_.cmake.id() == id:
+            # We're going to configure an additional single-config
+            # CMake directory. The others are not invalidated.
+            sflavors = set(state_.cmake.flavors([])) | set([flavor_])
         else:
-            # Once CMake is configured, its binary directory cannot be moved,
-            # but our choice of binary directory depends on whether the
-            # generator is multi-config.
-            # We first configure a tiny project in a temporary directory to
-            # find out whether the generator is multi-config. 
-            multiConfig = CMake(CMAKE).is_multi_config(generator)
+            sflavors = [flavor_]
+
+        cmake_dir = build_dir_ / 'cmake'
         if not multiConfig:
             cmake_dir /= flavor_
+
         shutil.rmtree(cmake_dir, ignore_errors=True)
         # This directory should not yet exist, but its parent might.
         cmake_dir.mkdir(parents=True)
@@ -710,8 +721,8 @@ class Cupcake:
         if prefixes:
             cmake_args['CMAKE_PREFIX_PATH'] = ';'.join(prefixes)
         if multiConfig:
-            new_flavors = config_.flavors()
-            cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(new_flavors)
+            flavors = [FLAVORS[f] for f in sflavors]
+            cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(flavors)
         else:
             cmake_args['CMAKE_BUILD_TYPE'] = FLAVORS[flavor_]
         # Add these last to let callers override anything.
@@ -720,9 +731,11 @@ class Cupcake:
         CMake(CMAKE).configure(
             cmake_dir, source_dir_, generator, cmake_args
         )
+
         state_.cmake.id = id
+        state_.cmake.generator = generator
         state_.cmake.multiConfig = multiConfig
-        state_.cmake.flavors = new_flavors
+        state_.cmake.flavors = sflavors
         confee.write(config_)
         confee.write(state_)
         return state_.cmake
