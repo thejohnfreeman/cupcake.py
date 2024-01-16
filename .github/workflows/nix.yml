@@ -17,22 +17,17 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
         with:
-          submodules: true
+          submodules: 'recursive'
       - name: install environment
         uses: ./.github/actions/install-nix
       - name: add Redirectory
         run: |
           conan remote add redirectory https://conan.jfreeman.dev
           # TODO: Possible to authenticate with ${GITHUB_TOKEN}?
-      - name: export Conan packages from template-project-cpp
-        run: |
-          # They all depend on `cupcake`.
-          conan export submodules/project-template-cpp/cupcake
-          # `ten` (`10-conan`) depends on `zero`.
-          conan export submodules/project-template-cpp/00-upstream
       - name: install dependencies
         run: |
           poetry install
       - name: test project
         run: |
-          poetry run pytest -n auto --ignore submodules
+          poetry run pytest tests
+          poetry run pytest submodules/project-template-cpp/tests --builder cupcake
