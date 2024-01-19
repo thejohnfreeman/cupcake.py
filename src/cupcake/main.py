@@ -163,7 +163,7 @@ def pack_github(path):
         user, project, suffix = re.match(PATTERN_GITHUB_PATH, path).groups()
         if suffix is None:
             suffix = '/'
-        run(['git', 'clone', '--recursive', f'https://github.com/{user}/{project}', tmp])
+        run(['git', 'clone', f'https://github.com/{user}/{project}', tmp])
         yield tmp + suffix
 
 def update_dependency(metadata, group, name, f):
