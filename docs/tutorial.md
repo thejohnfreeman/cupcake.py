@@ -63,7 +63,7 @@ That package is available through [Redirectory]
 which you can add as a remote[^3]:
 
 ```
-cupcake remote add redirectory https://conan.jfreeman.dev
+conan remote add redirectory https://conan.jfreeman.dev
 ```
 
 Alternatively, you can add it to your local cache with `cupcake pack`,
