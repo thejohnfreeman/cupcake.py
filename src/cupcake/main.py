@@ -115,8 +115,8 @@ def compare_version(a, b):
     # Numbers are considered higher/later/younger versions than non-numbers.
     # Numbers are considered higher/later/younger versions than nothing.
     # Non-numbers are considered lower/earlier/older versions than nothing.
-    aa = re.split('(\D+)', a)
-    bb = re.split('(\D+)', b)
+    aa = re.split('(\\D+)', a)
+    bb = re.split('(\\D+)', b)
     for aaa, bbb in itertools.zip_longest(aa, bb):
         try:
             aaa = int(aaa)
