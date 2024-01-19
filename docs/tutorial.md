@@ -70,7 +70,7 @@ Alternatively, you can add it to your local cache with `cupcake pack`,
 which works for GitHub URLs:
 
 ```
-cupcake pack https://github.com/thejohnfreeman/project-template-cpp/tree/master/cupcake
+cupcake pack https://github.com/thejohnfreeman/cupcake
 ```
 
 
