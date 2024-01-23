@@ -568,7 +568,7 @@ class Cupcake:
             '--output-folder', conan_dir,
             '--profile:build', profile, '--profile:host', profile,
         ]
-        for name, value in copts:
+        for name, value in copts.items():
             command.extend(['--options', f'{name}={value}'])
         for flavor in diff_flavors:
             with (log_dir_ / 'conan').open('wb') as stream:
