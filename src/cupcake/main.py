@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import typing as t
 import urllib.parse
 
 from cupcake import cascade, confee
@@ -137,7 +138,8 @@ key = functools.cmp_to_key(
     lambda a, b: compare_version(a, b)
 )
 
-def parse_options(options, default):
+def parse_options(options: t.Iterable[str], default):
+    """Parse "name[=value]" strings into a {name: value, ...} dictionary."""
     adds = {}
     for option in options:
         match = re.match(r'^([^=]+)(?:=(.+))?$', option)
@@ -566,8 +568,8 @@ class Cupcake:
             '--output-folder', conan_dir,
             '--profile:build', profile, '--profile:host', profile,
         ]
-        for option in options:
-            command.extend(['--options', option])
+        for name, value in copts:
+            command.extend(['--options', f'{name}={value}'])
         for flavor in diff_flavors:
             with (log_dir_ / 'conan').open('wb') as stream:
                 tee(
