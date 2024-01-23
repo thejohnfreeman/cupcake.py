@@ -597,6 +597,7 @@ class Cupcake:
         help='Name of CMake generator.',
         metavar='NAME',
     )
+    # TODO: Modify the Conan options to agree. Warn on explicit disagreement.
     @cascade.option(
         '--shared/--static',
         help='Whether to build shared libraries.',
@@ -689,8 +690,8 @@ class Cupcake:
         )
 
         # The config names the set of interesting flavors.
-        cflavors = tuple(set(config_.cmake.flavors([])) | set([flavor_]))
-        config_.cmake.flavors = cflavors
+        # It was already assigned by the `conan` step.
+        cflavors = config_.flavors()
 
         # The state names the subset of interesting flavors
         # that are configured in the build directory.
@@ -702,7 +703,7 @@ class Cupcake:
         elif state_.cmake.id() == id:
             # We're going to configure an additional single-config
             # CMake directory. The others are not invalidated.
-            sflavors = set(state_.cmake.flavors([])) | set([flavor_])
+            sflavors = list({*state_.cmake.flavors([]), flavor_})
         else:
             sflavors = [flavor_]
 
