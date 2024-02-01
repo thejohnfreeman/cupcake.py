@@ -1067,5 +1067,7 @@ def main():
     try:
         Cupcake()
     finally:
-        finish = time.time()
-        print(f'{finish - start:.3}s')
+        duration = time.time() - start # in seconds
+        if duration > 1:
+            # TODO: Print human-friendly representation.
+            print(f'{duration:.3}s')
