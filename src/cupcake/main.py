@@ -872,7 +872,7 @@ class Cupcake:
     ):
         """Create a new project."""
         loader = jinja2.PackageLoader('cupcake', 'data/new')
-        env = jinja2.Environment(
+        jenv = jinja2.Environment(
             loader=loader,
             keep_trailing_newline=True,
             trim_blocks=True,
@@ -888,6 +888,12 @@ class Cupcake:
             ).stdout.decode().strip()
             author = f'{username} <{email}>'
 
+        prefix = pathlib.Path(path).resolve()
+        if not force and prefix.exists() and any(prefix.iterdir()):
+            raise SystemExit('directory is not empty')
+        if name is None:
+            name = prefix.name
+
         # TODO: Take default license and github from user config.
         context = dict(
             version=version,
@@ -900,46 +906,20 @@ class Cupcake:
             github=github,
         )
 
-        prefix = pathlib.Path(path).resolve()
-        if not force and prefix.exists() and any(prefix.iterdir()):
-            raise SystemExit('directory is not empty')
-        if name is None:
-            name = prefix.name
-
-        if not re.match(r'[a-z][a-z0-9-]*', name):
-            raise SystemExit(f'name must contain only lowercase letters, numbers, and dashes: {name}')
-
-        NameTitle = name.title().replace('-', '')
-        name_snake_lower = name.replace('-', '_')
-        NAME_SNAKE_UPPER = name_snake_lower.upper()
-
-        context.update({
-            'name': name,
-            'NameTitle': NameTitle,
-            'name_snake_lower': name_snake_lower,
-            'NAME_SNAKE_UPPER': NAME_SNAKE_UPPER,
-        })
-
-        for tname in loader.list_templates():
-            suffix = env.from_string(tname).render(**context)
-            if not library and suffix.startswith('include/'):
-                continue
-            if not library and suffix.startswith('src/lib'):
-                continue
-            if not executable and suffix.startswith('src/') and not suffix.startswith('src/lib'):
-                continue
-            if not tests and suffix.startswith('tests/'):
-                continue
-            path = pathlib.Path(prefix, suffix)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            template = env.get_template(tname)
-            path.write_text(template.render(**context))
+        tnames = [
+            n for n in jenv.list_templates()
+            if (library or not n.startswith('include/'))
+            or (library or not n.startswith('src/lib'))
+            or (executable or not (n.startswith('src/') and not n.startswith('src/lib')))
+            or (tests or not n.startswith('tests/'))
+        ]
+        self.generate_(jenv, prefix, tnames, name, context)
 
         # Assemble and write cupcake.json.
         if special:
-            meta = confee.read(prefix / 'cupcake.json')
+            metadata = confee.read(prefix / 'cupcake.json')
             if library:
-                meta.groups.main.libraries = [
+                metadata.groups.main.libraries = [
                     {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
                 ]
             if executable:
@@ -947,9 +927,9 @@ class Cupcake:
                 if library:
                     links.append(f'{name}.lib{name}')
                 exe = {'name': name, 'links': links}
-                meta.groups.main.executables = [exe]
+                metadata.groups.main.executables = [exe]
             if tests:
-                meta.groups.test.imports = [
+                metadata.groups.test.imports = [
                     {
                         'name': 'doctest',
                         'file': 'doctest',
@@ -960,8 +940,32 @@ class Cupcake:
                 if library:
                     links.append(f'{name}.lib{name}')
                 test = {'name': name, 'links': links }
-                meta.groups.test.tests = [test]
-            confee.write(meta)
+                metadata.groups.test.tests = [test]
+            confee.write(metadata)
+
+
+    def generate_(self, jenv, prefix, tnames, name, context):
+        if not re.match(r'[a-z][a-z0-9-]*', name):
+            raise SystemExit(f'name must contain only lowercase letters, numbers, and dashes: {name}')
+
+        NameTitle = name.title().replace('-', '')
+        name_snake_lower = name.replace('-', '_')
+        NAME_SNAKE_UPPER = name_snake_lower.upper()
+
+        context = {
+            **context,
+            'name': name,
+            'NameTitle': NameTitle,
+            'name_snake_lower': name_snake_lower,
+            'NAME_SNAKE_UPPER': NAME_SNAKE_UPPER,
+        }
+
+        for tname in tnames:
+            suffix = jenv.from_string(tname).render(**context)
+            path = pathlib.Path(prefix, suffix)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            template = jenv.get_template(tname)
+            path.write_text(template.render(**context))
 
 
     @cascade.command()
@@ -1046,6 +1050,60 @@ class Cupcake:
         metadata = confee.read(path)
         update_dependency(metadata, 'main', name, const(None))
         update_dependency(metadata, 'test', name, const(None))
+        confee.write(metadata)
+
+    @cascade.command('add:lib')
+    @cascade.option('--header-only', is_flag=True, help='Whether to create a source file.')
+    @cascade.argument('name', required=True)
+    def add_lib(self, source_dir_, header_only, name):
+        """Add a library."""
+        loader = jinja2.PackageLoader('cupcake', 'data/new')
+        jenv = jinja2.Environment(
+            loader=loader,
+            keep_trailing_newline=True,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+
+        tnames = ['include/{{name}}/{{name}}.hpp']
+        if not header_only:
+            tnames.append('src/lib{{name}}.cpp')
+        self.generate_(jenv, source_dir_, tnames, name, context={})
+
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        libraries = metadata.groups.main.libraries()
+        libraries.append(
+            {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+        )
+        metadata.groups.main.libraries = libraries
+        confee.write(metadata)
+
+    @cascade.command('remove:lib')
+    @cascade.argument('name', required=True)
+    def remove_lib(self, source_dir_, name):
+        """Remove a library."""
+        (source_dir_ / 'include' / f'{name}.hpp').unlink(missing_ok=True)
+        (source_dir_ / 'include' / f'{name}.h').unlink(missing_ok=True)
+        try:
+            shutil.rmtree(source_dir_ / 'include' / f'{name}')
+        except FileNotFoundError:
+            pass
+
+        (source_dir_ / 'src' / f'lib{name}.cpp').unlink(missing_ok=True)
+        (source_dir_ / 'src' / f'lib{name}.c').unlink(missing_ok=True)
+        try:
+            shutil.rmtree(source_dir_ / 'src' / f'lib{name}')
+        except FileNotFoundError:
+            pass
+
+        # TODO: Search for all includes of the library and remove them?
+
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        libraries = metadata.groups.main.libraries()
+        libraries = [l for l in libraries if l['name'] != name]
+        metadata.groups.main.libraries = libraries
+        # TODO: Search for all links to the library and remove them?
+        # groups.*.{libraries,executables,tests}[*].links
         confee.write(metadata)
 
     @cascade.command()
