@@ -1,13 +1,37 @@
+import os
+import pytest
 import subprocess
 import tempfile
 
-def test_new():
-    with tempfile.TemporaryDirectory() as work_dir:
-        def test(*args):
-            subprocess.check_call(['cupcake', *args], cwd=work_dir)
-        test('new', 'foo')
-        test('build', '-S', 'foo', '-B', '.build')
-        test('clean', '-S', 'foo', '-B', '.build')
-        test('test', '-S', 'foo', '-B', '.build')
-        test('install', '-S', 'foo', '-B', '.build', '--prefix', '.install')
-        test('add', '-S', 'foo', 'zlib')
+@pytest.fixture(scope='session', params=[True, False])
+def special(request):
+    return request.param
+
+@pytest.fixture(scope='session', params=[True, False])
+def library(request):
+    return request.param
+
+@pytest.fixture(scope='session', params=[True, False])
+def executable(request):
+    return request.param
+
+@pytest.fixture(scope='session', params=[True, False])
+def tests(request):
+    return request.param
+
+def test_cwd(sh, special, library, executable, tests):
+    args = []
+    env = dict(os.environ)
+    if not special:
+        args.append('--general')
+        env.update({'CUPCAKE_NO_SPECIAL': '1'})
+    if not library:
+        args.append('--no-library')
+    if not executable:
+        args.append('--no-executable')
+    if not tests:
+        args.append('--no-tests')
+    sh> sh.cupcake('new', 'foo', *args).env(env)
+    command = 'test' if tests else 'exe' if executable else 'build'
+    sh> sh.cupcake(command, '-S', 'foo', '-B', '.build')
+    sh> sh.cupcake('install', '-S', 'foo', '-B', '.build', '--prefix', '.install')
