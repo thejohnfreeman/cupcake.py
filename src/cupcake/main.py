@@ -818,6 +818,12 @@ class Cupcake:
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
     @cascade.option(
+        '--version', help='Version of requirement cupcake@github/thejohnfreeman.', default='0.6.0',
+    )
+    @cascade.option(
+        '--special/--general', help='Whether to enable special commands.', default=True,
+    )
+    @cascade.option(
         '--library/--no-library', help='Whether to export a library.', default=True,
     )
     @cascade.option(
@@ -843,7 +849,7 @@ class Cupcake:
         ''',
     )
     @cascade.option(
-        '--github', '--gh', help='The GitHub user or organization.',
+        '--github', '--gh', help='The GitHub project owner.',
     )
     @cascade.option(
         '--force', '-f',
@@ -853,6 +859,8 @@ class Cupcake:
     def new(
         self,
         path,
+        version: str,
+        special: bool,
         library: bool,
         executable: bool,
         tests: bool,
@@ -882,6 +890,8 @@ class Cupcake:
 
         # TODO: Take default license and github from user config.
         context = dict(
+            version=version,
+            special=special,
             with_library=library,
             with_executable=executable,
             with_tests=tests,
@@ -924,6 +934,35 @@ class Cupcake:
             path.parent.mkdir(parents=True, exist_ok=True)
             template = env.get_template(tname)
             path.write_text(template.render(**context))
+
+        # Assemble and write cupcake.json.
+        if special:
+            meta = confee.read(prefix / 'cupcake.json')
+            if library:
+                meta.groups.main.libraries = [
+                    {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+                ]
+            if executable:
+                links = ['${PROJECT_NAME}.imports.main']
+                if library:
+                    links.append(f'{name}.lib{name}')
+                exe = {'name': name, 'links': links}
+                meta.groups.main.executables = [exe]
+            if tests:
+                meta.groups.test.imports = [
+                    {
+                        'name': 'doctest',
+                        'file': 'doctest',
+                        'targets': ['doctest::doctest'],
+                    }
+                ]
+                links = ['${PROJECT_NAME}.imports.test']
+                if library:
+                    links.append(f'{name}.lib{name}')
+                test = {'name': name, 'links': links }
+                meta.groups.test.tests = [test]
+            confee.write(meta)
+
 
     @cascade.command()
     @cascade.argument('query')
