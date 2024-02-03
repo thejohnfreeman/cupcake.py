@@ -676,7 +676,7 @@ class Cupcake:
         id = m.hexdigest()
 
         # Check for the conditions that enable a short-circuit.
-        if state_.cmake.id() == id and flavor_ in state_.cmake.flavors([]):
+        if state_.cmake.id(None) == id and flavor_ in state_.cmake.flavors([]):
             return state_.cmake
 
         # Once CMake is configured, its binary directory cannot be moved,
@@ -690,8 +690,9 @@ class Cupcake:
         )
 
         # The config names the set of interesting flavors.
-        # It was already assigned by the `conan` step.
-        cflavors = config_.flavors()
+        # It was already assigned by the `conan` step
+        # unless there is no conanfile.
+        cflavors = list({*config_.flavors([]), flavor_})
 
         # The state names the subset of interesting flavors
         # that are configured in the build directory.
@@ -700,7 +701,7 @@ class Cupcake:
         # flavors are configured only when selected.
         if multiConfig:
             sflavors = cflavors
-        elif state_.cmake.id() == id:
+        elif state_.cmake.id(None) == id:
             # We're going to configure an additional single-config
             # CMake directory. The others are not invalidated.
             sflavors = list({*state_.cmake.flavors([]), flavor_})

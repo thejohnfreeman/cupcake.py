@@ -15,7 +15,7 @@ Syntactically, the operations look like this:
 
 Those forms translate into these:
 
-- get:    `a.__getattr__('b').__getattr__('c').__call__(default=None)`
+- get:    `a.__getattr__('b').__getattr__('c').__call__(default=KeyError)`
 - set:    `a.__getattr__('b').__setattr__('c', x)
 - delete: `a.__getattr__('b').__delattr__('c')
 
@@ -83,7 +83,8 @@ def resolve(override, proxy, default):
 # remove `unvariables`,
 # and then write the result to `config.cmake.variables`.
 def merge(adds, removes, proxy, default):
-    """Compile a set of options.
+    """
+    Compile a set of options.
 
     Start with a saved setting in `proxy` (default `default`),
     override with `adds`, remove `removes`,
@@ -199,14 +200,27 @@ class ValueProxy:
         self[name] = value
     def __delattr__(self, name):
         return _SELVES[self].delete(name)
-    def __call__(self, default=None, *args, **kwargs):
-        value = _SELVES[self].value
-        return default if value is _MISSING else value
+    def __call__(self, default=_MISSING, *args, **kwargs):
+        underlying = _SELVES[self]
+        value = underlying.value
+        if value is _MISSING:
+            if default is _MISSING:
+                raise KeyError(_path(underlying))
+            return default
+        return value
     def __bool__(self):
         return _SELVES[self].value is not _MISSING
     # TODO: Add iteration methods, in case underlying type is iterable,
     # that yield proxies of items. Consider case when trying to iterate over
     # array that does not exist, but would be an empty array by default.
+
+def _path(self, suffix=''):
+    if self.parent is None:
+        return ''
+    return _path(self.parent, '.') + self.name + suffix
+
+def path(proxy):
+    return _path(_SELVES[proxy])
 
 def set(proxy, value):
     self = _SELVES[proxy]

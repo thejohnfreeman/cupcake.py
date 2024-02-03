@@ -14,6 +14,13 @@ def test_not_empty(config):
     config.a = 1
     assert(config() != {})
 
+def test_no_default(config):
+    with pytest.raises(KeyError):
+        config.a()
+
+def test_default(config):
+    assert(config.a(1) == 1)
+
 def test_set_keys_get_dict(config):
     config.a = 1
     config.b = 2
@@ -32,11 +39,13 @@ def test_merge_remove(config):
 def test_merge_default(config):
     opts = confee.merge({}, [], config.options, {'a': 1})
     assert(opts == {'a': 1})
-    assert(config.options() is None)
+    with pytest.raises(KeyError):
+        config.options()
 
 def test_merge_reset(config):
     config.options.a = 1
     assert(config.options() == {'a': 1})
     opts = confee.merge({'b': 2}, ['a'], config.options, {'b': 2})
     assert(opts == {'b': 2})
-    assert(config.options() is None)
+    with pytest.raises(KeyError):
+        config.options()
