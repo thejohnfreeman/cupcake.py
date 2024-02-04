@@ -202,7 +202,10 @@ class Proxy:
     def __init__(self, typ, parent, name, value):
         _SELVES[self] = Value(typ, parent, name, value)
     def __getitem__(self, name):
-        return _SELVES[self].get(name)
+        # TODO: Can we use `Subscript` somehow?
+        if isinstance(name, (str, int)):
+            return _SELVES[self].get(name)
+        return MultiProxy(self, name)
     def __getattr__(self, name):
         return self[name]
     def __setitem__(self, name, value):
@@ -219,11 +222,72 @@ class Proxy:
                 raise KeyError(_path(underlying))
             return default
         return value
+    def __iter__(self):
+        return iter([self])
     def __bool__(self):
         return _SELVES[self].value is not _MISSING
     # TODO: Add iteration methods, in case underlying type is iterable,
     # that yield proxies of items. Consider case when trying to iterate over
     # array that does not exist, but would be an empty array by default.
+
+class MultiProxy:
+    """An iterable that yields proxies."""
+    def __init__(self, parent, indices):
+        self.parent = parent
+        self.indices = indices
+    def __iter__(self):
+        for proxy in self.parent:
+            # Recompute exact indices for each iterable.
+            indices = self.indices
+            # Raises if there is no underlying.
+            underlying = proxy()
+            if isinstance(indices, slice):
+                if isinstance(underlying, t.Mapping):
+                    # Only unbounded slices are valid for mappings.
+                    assert(indices.start is None and indices.stop is None)
+                    yield from (proxy[key] for key in underlying)
+                    continue
+                else:
+                    # JSON does not have sequences other than array.
+                    assert(isinstance(underlying, t.Sequence))
+                    indices = to_indices(indices, len(underlying))
+            yield from (proxy[index] for index in indices)
+    def __getitem__(self, indices):
+        if isinstance(indices, (int, str)):
+            indices = [indices]
+        return MultiProxy(self, indices)
+
+def sign(i):
+    return 1 if i > 0 else -1 if i < 0 else 0
+
+def to_indices(slice, length):
+    step = slice.step
+    if step is None:
+        step = 1
+
+    start = slice.start
+    if start is None:
+        start = 0 if step > 0 else length - 1
+    elif start < 0:
+        start += length
+    if start < 0:
+        start = -1 + sign(step)
+    elif start >= length:
+        start = length + sign(step)
+
+    stop = slice.stop
+    if stop is None:
+        stop = length if step > 0 else -1
+    elif stop < 0:
+        stop += length
+    if stop < 0:
+        stop = -1
+    elif stop > length:
+        stop = length
+
+    while sign(stop - start) == sign(step):
+        yield start
+        start += step
 
 def _path(self, suffix=''):
     if self.parent is None:

@@ -49,3 +49,50 @@ def test_merge_reset(config):
     assert(opts == {'b': 2})
     with pytest.raises(KeyError):
         config.options()
+
+def test_proxy_equal(config):
+    config.a = 1
+    assert(config.a != 1)
+    assert(config.a == config.a)
+
+@pytest.fixture()
+def nested(config):
+    config.scalar = 1
+    config.array = [1, 2, 3]
+    config.object = {'a': 1, 'b': 2, 'c': 3}
+    return config
+
+def test_iter_scalar(nested):
+    assert(list(nested.scalar) == [nested.scalar])
+    assert(list(iter(nested.scalar)) == [nested.scalar])
+
+def test_slice(nested):
+    assert(list(nested.array[:]) == [nested.array[0], nested.array[1], nested.array[2]])
+    assert(list(nested.array[1:2]) == [nested.array[1]])
+
+    assert(list(nested.array[[1,2]]) == [nested.array[1], nested.array[2]])
+    assert(list(nested.array[(1,2)]) == [nested.array[1], nested.array[2]])
+    assert( set(nested.array[{1,2}]) == {nested.array[1], nested.array[2]})
+
+    # Respect insertion order.
+    assert(list(nested.object[:]) == [nested.object.a, nested.object.b, nested.object.c])
+
+    assert(list(nested.object[['a','b']]) == [nested.object.a, nested.object.b])
+    assert(list(nested.object[('a','b')]) == [nested.object.a, nested.object.b])
+    assert( set(nested.object[{'a','b'}]) == {nested.object.a, nested.object.b})
+
+@pytest.fixture(params=[None, 0, 1, 2, 3, 100, -1, -100])
+def start(request):
+    return request.param
+
+@pytest.fixture(params=[None, 0, 1, 2, 3, 100, -1, -100])
+def stop(request):
+    return request.param
+
+@pytest.fixture(params=[None, 1, 2, 3, 100, -1, -100])
+def step(request):
+    return request.param
+
+def test_to_indices(start, stop, step):
+    s = slice(start, stop, step)
+    assert(list(confee.to_indices(s, 3)) == [0, 1, 2][s])
