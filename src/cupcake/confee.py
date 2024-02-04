@@ -41,6 +41,7 @@ import pathlib
 import shutil
 import tempfile
 import tomlkit
+import typing as t
 
 _MISSING = object()
 _SELVES = {}
@@ -138,13 +139,23 @@ def read(pathlike, typ=None):
             root = typ.read(file)
     else:
         root = typ.root()
-    return ValueProxy(typ, None, path, root)
+    return Proxy(typ, None, path, root)
 
 def write(proxy):
     self = _SELVES[proxy]
     path = self.name
     with atomic(path, 'w') as file:
         self.typ.write(file, self.value)
+
+# Because configs must be serializeable to TOML or JSON,
+# the only permissible keys are strings and integers.
+Subscript = t.Union[str, int]
+
+def lookup(subscriptable, subscript, default):
+    try:
+        return subscriptable[subscript]
+    except LookupError:
+        return default
 
 class Value:
     def __init__(self, typ, parent, name, value):
@@ -154,15 +165,15 @@ class Value:
         self.value = value
         # Map from names to proxies.
         self.members = {}
-    def get(self, name):
+    def get(self, name: Subscript):
         proxy = self.members.get(name, None)
         if proxy is None:
             value = (
                 _MISSING
                 if self.value is _MISSING
-                else self.value.get(name, _MISSING)
+                else lookup(self.value, name, _MISSING)
             )
-            proxy = ValueProxy(self.typ, self, name, value)
+            proxy = Proxy(self.typ, self, name, value)
             self.members[name] = proxy
         return proxy
     def set(self, name, value):
@@ -187,7 +198,7 @@ class Value:
             del self.members[name]
             del _SELVES[proxy]
 
-class ValueProxy:
+class Proxy:
     def __init__(self, typ, parent, name, value):
         _SELVES[self] = Value(typ, parent, name, value)
     def __getitem__(self, name):
