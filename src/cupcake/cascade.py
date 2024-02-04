@@ -2,21 +2,12 @@ import click
 import functools
 import inspect
 
+from cupcake import functional as fn
+
 # A metaclass must return a class for inheritance to work.
 # Inheritance must work to give users a convenient intermediate class.
 
 _MISSING = object()
-
-def identity(x):
-    return x
-
-# TODO: Consider taking this function from package `toolz`.
-def compose(*callables):
-    def apply(x):
-        for c in reversed(callables):
-            x = c(x)
-        return x
-    return apply
 
 class Middle:
     def __init__(self, bottom, methods):
@@ -56,7 +47,7 @@ def group(*args, **kwargs):
                 return
 
             parameters = {
-                name: getattr(member, 'cascade.parameters', identity)
+                name: getattr(member, 'cascade.parameters', fn.identity)
             }
 
             signature = inspect.signature(member)
@@ -76,7 +67,7 @@ def group(*args, **kwargs):
             if attr is not None:
                 args, kwargs = attr
                 @group.command(*args, **kwargs)
-                @compose(*parameters.values())
+                @fn.compose(*parameters.values())
                 @click.pass_context
                 @functools.wraps(member)
                 def command(context, **kwargs):
@@ -114,16 +105,16 @@ def command(*args, **kwargs):
 
 def option(*args, **kwargs):
     def decorator(method):
-        inner = getattr(method, 'cascade.parameters', identity)
-        outer = compose(click.option(*args, **kwargs), inner)
+        inner = getattr(method, 'cascade.parameters', fn.identity)
+        outer = fn.compose(click.option(*args, **kwargs), inner)
         setattr(method, 'cascade.parameters', outer)
         return method
     return decorator
 
 def argument(*args, **kwargs):
     def decorator(method):
-        inner = getattr(method, 'cascade.parameters', identity)
-        outer = compose(click.argument(*args, **kwargs), inner)
+        inner = getattr(method, 'cascade.parameters', fn.identity)
+        outer = fn.compose(click.argument(*args, **kwargs), inner)
         setattr(method, 'cascade.parameters', outer)
         return method
     return decorator
