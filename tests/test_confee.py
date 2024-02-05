@@ -10,6 +10,14 @@ def config(request):
 def test_empty(config):
     assert(config() == {})
 
+def test_delete_recursive(config):
+    config.a.b.c = 1
+    assert(config.a.b.c)
+    del config.a.b.c
+    assert(not config.a.b.c)
+    assert(not config.a.b)
+    assert(not config.a)
+
 def test_not_empty(config):
     config.a = 1
     assert(config() != {})
@@ -93,6 +101,10 @@ def stop(request):
 def step(request):
     return request.param
 
-def test_to_indices(start, stop, step):
+@pytest.fixture(params=[[], [0], [0, 1], [0, 1, 2]])
+def indices(request):
+    return request.param
+
+def test_to_indices(start, stop, step, indices):
     s = slice(start, stop, step)
-    assert(list(confee.to_indices(s, 3)) == [0, 1, 2][s])
+    assert(list(confee.to_indices(s, len(indices))) == indices[s])

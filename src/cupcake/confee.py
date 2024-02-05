@@ -193,6 +193,11 @@ class Value:
             del self.value[name]
         except KeyError:
             pass
+        # Parents are always containers.
+        # Empty containers should be removed.
+        # Empty containers can be distinguished because they are falsy.
+        if not self.value and self.parent:
+            self.parent.delete(self.name)
         proxy = self.members.get(name, None)
         if proxy is not None:
             del self.members[name]
@@ -226,9 +231,6 @@ class Proxy:
         return iter([self])
     def __bool__(self):
         return _SELVES[self].value is not _MISSING
-    # TODO: Add iteration methods, in case underlying type is iterable,
-    # that yield proxies of items. Consider case when trying to iterate over
-    # array that does not exist, but would be an empty array by default.
 
 class MultiProxy:
     """An iterable that yields proxies."""
