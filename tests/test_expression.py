@@ -1,4 +1,4 @@
-from cupcake.expression import subject, expression, match
+from cupcake.expression import subject, contains, expression, match
 
 def test_identity():
     expr = subject
@@ -38,3 +38,8 @@ def test_in():
     assert(match(pred) in [3, 2, 1])
     assert(match(pred) not in [4, 5, 6])
     assert(match(pred) not in [])
+
+def test_contains():
+    pred = contains([3, 2, 1], subject)
+    assert(pred(2))
+    assert(not pred(4))

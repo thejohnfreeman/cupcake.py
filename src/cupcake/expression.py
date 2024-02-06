@@ -11,6 +11,8 @@ class AbstractExpression:
         return Expression(lambda subject: subject[key])
     def __or__(self, rhs):
         return BinaryExpression(operator.or_, self, rhs)
+    def __contains__(self, item):
+        return BinaryExpression(operator.contains, self, item)
 
 class Expression(AbstractExpression):
     def __init__(self, function):
@@ -30,6 +32,9 @@ class BinaryExpression(AbstractExpression):
         return self.op(
             evaluate(self.lhs, subject), evaluate(self.rhs, subject)
         )
+
+def contains(container, item):
+    return BinaryExpression(operator.contains, container, item)
 
 class Subject(AbstractExpression):
     def __repr__(self):
