@@ -663,6 +663,9 @@ class Cupcake:
             m.update(conan.id().encode())
         # TODO: Calculate ID from all files read during configuration.
         m.update((source_dir_ / 'CMakeLists.txt').read_bytes())
+        path = source_dir_ / 'cupcake.json'
+        if path.is_file():
+            m.update(path.read_bytes())
         if generator is not None:
             m.update(generator.encode())
         if shared:
@@ -686,7 +689,7 @@ class Cupcake:
         multiConfig = (
             state_.cmake.multiConfig()
             if state_.cmake.multiConfig
-            and state_.cmake.generator() == generator else
+            and state_.cmake.generator(None) == generator else
             CMake(CMAKE).is_multi_config(generator)
         )
 
