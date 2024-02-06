@@ -43,6 +43,8 @@ import tempfile
 import tomlkit
 import typing as t
 
+from cupcake.expression import evaluate
+
 _MISSING = object()
 _SELVES = {}
 
@@ -241,9 +243,11 @@ class MultiProxy:
         for proxy in self.parent:
             # Recompute exact indices for each iterable.
             indices = self.indices
-            # Raises if there is no underlying.
-            underlying = proxy()
             if isinstance(indices, slice):
+                if not proxy:
+                    continue
+                # Raises if there is no underlying.
+                underlying = proxy()
                 if isinstance(underlying, t.Mapping):
                     # Only unbounded slices are valid for mappings.
                     assert(indices.start is None and indices.stop is None)
@@ -258,6 +262,8 @@ class MultiProxy:
         if isinstance(indices, (int, str)):
             indices = [indices]
         return MultiProxy(self, indices)
+    def __getattr__(self, name):
+        return self[name]
 
 def sign(i):
     return 1 if i > 0 else -1 if i < 0 else 0
@@ -314,3 +320,13 @@ def add(proxies, item):
     for proxy in proxies:
         items = proxy([])
         set(proxy, items + type(items)([item]))
+
+def remove_if(proxies, pred):
+    for proxy in proxies:
+        # Is no default correct here?
+        items = proxy()
+        items = [item for item in items if not evaluate(pred, item)]
+        if items:
+            set(proxy, items)
+        else:
+            delete(proxy)

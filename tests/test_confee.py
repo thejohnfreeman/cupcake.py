@@ -14,6 +14,14 @@ def test_empty(config):
 def test_delete_recursive(config):
     config.a.b.c = 1
     assert(config.a.b.c)
+    confee.delete(config.a.b.c)
+    assert(not config.a.b.c)
+    assert(not config.a.b)
+    assert(not config.a)
+
+def test_delete_op_recursive(config):
+    config.a.b.c = 1
+    assert(config.a.b.c)
     del config.a.b.c
     assert(not config.a.b.c)
     assert(not config.a.b)
@@ -66,22 +74,59 @@ def test_proxy_equal(config):
 
 def test_add_library_to_empty(config):
     name = 'abc'
+    assert(not config.groups)
     confee.add(
         config.groups.main.libraries,
-        {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+        {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
     )
     assert(match(subject['name'] == name) in config.groups.main.libraries())
 
 def test_add_library_to_non_empty(config):
     config.groups.main.libraries = [
-        {'name': 'xyz', 'links': ['${PROJECT_NAME}.imports.main'] }
+        {'name': 'xyz', 'links': ['${PROJECT_NAME}.imports.main'] },
     ]
     name = 'abc'
     confee.add(
         config.groups.main.libraries,
-        {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+        {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
     )
     assert(match(subject['name'] == name) in config.groups.main.libraries())
+
+def test_remove_library(config):
+    name = 'xyz'
+    config.groups.main.libraries = [
+        {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
+    ]
+    assert(config.groups.main.libraries)
+    confee.remove_if(config.groups.main.libraries, subject['name'] == name)
+    assert(not config.groups.main.libraries)
+
+def test_unlink_library(config):
+    target = 'removed'
+    config.groups.main.libraries = [
+        {'name': 'abc', 'links': ['${PROJECT_NAME}.imports.main'] },
+        {'name': 'def', 'links': ['abc', target] },
+        {'name': 'xyz', 'links': [{ 'target': target, 'scope': 'PUBLIC' }] },
+    ]
+    config.groups.test.tests = [
+        {'name': 'abc', 'links': ['${PROJECT_NAME}.imports.main'] },
+        {'name': 'def', 'links': ['abc', target] },
+        {'name': 'xyz', 'links': [{ 'target': target, 'scope': 'PUBLIC' }] },
+    ]
+    confee.remove_if(
+        config.groups[:][{'libraries', 'executables', 'tests'}][:].links,
+        (subject == target) | (subject['target'] == target),
+    )
+    assert(config.groups.main.libraries() == [
+        {'name': 'abc', 'links': ['${PROJECT_NAME}.imports.main'] },
+        {'name': 'def', 'links': ['abc'] },
+        {'name': 'xyz' },
+    ])
+    assert(config.groups.test.tests() == [
+        {'name': 'abc', 'links': ['${PROJECT_NAME}.imports.main'] },
+        {'name': 'def', 'links': ['abc'] },
+        {'name': 'xyz' },
+    ])
 
 @pytest.fixture()
 def nested(config):

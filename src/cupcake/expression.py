@@ -36,7 +36,7 @@ class Subject(AbstractExpression):
         return 'subject'
 
 def evaluate(expr, subject):
-    return expr(subject) if isinstance(expr, AbstractExpression) else expr
+    return expr(subject) if callable(expr) else expr
 
 class Matcher:
     def __init__(self, expr):
