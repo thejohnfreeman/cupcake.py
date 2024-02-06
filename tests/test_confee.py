@@ -1,6 +1,7 @@
 import pytest
 
 from cupcake import confee
+from cupcake.expression import subject, match
 
 @pytest.fixture(params=['toml', 'json'])
 def config(request):
@@ -62,6 +63,25 @@ def test_proxy_equal(config):
     config.a = 1
     assert(config.a != 1)
     assert(config.a == config.a)
+
+def test_add_library_to_empty(config):
+    name = 'abc'
+    confee.add(
+        config.groups.main.libraries,
+        {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+    )
+    assert(match(subject['name'] == name) in config.groups.main.libraries())
+
+def test_add_library_to_non_empty(config):
+    config.groups.main.libraries = [
+        {'name': 'xyz', 'links': ['${PROJECT_NAME}.imports.main'] }
+    ]
+    name = 'abc'
+    confee.add(
+        config.groups.main.libraries,
+        {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+    )
+    assert(match(subject['name'] == name) in config.groups.main.libraries())
 
 @pytest.fixture()
 def nested(config):

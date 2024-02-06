@@ -309,3 +309,8 @@ def set(proxy, value):
 def delete(proxy):
     self = _SELVES[proxy]
     return self.parent.delete(self.name)
+
+def add(proxies, item):
+    for proxy in proxies:
+        items = proxy([])
+        set(proxy, items + type(items)([item]))
