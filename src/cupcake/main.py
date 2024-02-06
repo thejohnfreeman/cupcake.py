@@ -24,6 +24,7 @@ import typing as t
 import urllib.parse
 
 from cupcake import cascade, confee
+from cupcake.expression import subject, contains
 
 def run(command, *args, **kwargs):
     # TODO: Print this in a special color if writing to terminal.
@@ -919,6 +920,7 @@ class Cupcake:
         # Assemble and write cupcake.json.
         if special:
             metadata = confee.read(prefix / 'cupcake.json')
+            metadata.project.name = name
             if library:
                 metadata.groups.main.libraries = [
                     {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
@@ -1072,11 +1074,10 @@ class Cupcake:
         self.generate_(jenv, source_dir_, tnames, name, context={})
 
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        libraries = metadata.groups.main.libraries()
-        libraries.append(
-            {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+        confee.add(
+            metadata.groups.main.libraries,
+            {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
         )
-        metadata.groups.main.libraries = libraries
         confee.write(metadata)
 
     @cascade.command('remove:lib')
@@ -1100,11 +1101,16 @@ class Cupcake:
         # TODO: Search for all includes of the library and remove them?
 
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        libraries = metadata.groups.main.libraries()
-        libraries = [l for l in libraries if l['name'] != name]
-        metadata.groups.main.libraries = libraries
-        # TODO: Search for all links to the library and remove them?
-        # groups.*.{libraries,executables,tests}[*].links
+        confee.remove_if(metadata.groups.main.libraries, subject['name'] == name)
+        # Search for all links to the library and remove them.
+        # It must be an internal library.
+        targets = [f'${{PROJECT_NAME}}.lib{name}']
+        if metadata.project.name:
+            targets.append(f'{metadata.project.name()}.lib{name}')
+        confee.remove_if(
+            metadata.groups[:][{'libraries', 'executables', 'tests'}][:].links,
+            contains(targets, subject) | contains(targets, subject['target']),
+        )
         confee.write(metadata)
 
     @cascade.command()
