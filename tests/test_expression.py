@@ -1,26 +1,26 @@
-from cupcake.expression import subject, expression
+from cupcake.expression import subject, expression, match
 
 def test_identity():
     expr = subject
     assert(expr(1) == 1)
 
 def test_subject_equal():
-    expr = (subject == 1)
-    assert(expr(1))
-    assert(not expr(2))
+    pred = (subject == 1)
+    assert(pred(1))
+    assert(not pred(2))
 
 def test_name_match():
-    expr = (subject['id'] == 1)
-    assert(expr({'id': 1}))
-    assert(not expr({'id': 2}))
-    assert(not expr(1))
+    pred = (subject['id'] == 1)
+    assert(pred({'id': 1}))
+    assert(not pred({'id': 2}))
+    assert(not pred(1))
 
 def test_both():
-    expr = (subject == 1) | (subject['id'] == 1)
-    assert(expr(1))
-    assert(not expr(2))
-    assert(expr({'id': 1}))
-    assert(not expr({'id': 2}))
+    pred = (subject == 1) | (subject['id'] == 1)
+    assert(pred(1))
+    assert(not pred(2))
+    assert(pred({'id': 1}))
+    assert(not pred({'id': 2}))
 
 def test_decorator():
     # We must test with an asymmetric operation
@@ -28,7 +28,13 @@ def test_decorator():
     @expression()
     def subscript(subject, key):
         return subject[key]
-    expr = subscript('id') == 1
-    assert(expr({'id': 1}))
-    assert(not expr({'id': 2}))
-    assert(not expr(1))
+    pred = subscript('id') == 1
+    assert(pred({'id': 1}))
+    assert(not pred({'id': 2}))
+    assert(not pred(1))
+
+def test_in():
+    pred = (subject == 1)
+    assert(match(pred) in [3, 2, 1])
+    assert(match(pred) not in [4, 5, 6])
+    assert(match(pred) not in [])

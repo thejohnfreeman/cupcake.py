@@ -16,7 +16,10 @@ class Expression(AbstractExpression):
     def __init__(self, function):
         self.function = function
     def __call__(self, subject):
-        return self.function(subject)
+        try:
+            return self.function(subject)
+        except BaseException as error:
+            return error
 
 class BinaryExpression(AbstractExpression):
     def __init__(self, op, lhs, rhs):
@@ -33,10 +36,15 @@ class Subject(AbstractExpression):
         return 'subject'
 
 def evaluate(expr, subject):
-    try:
-        return expr(subject) if isinstance(expr, AbstractExpression) else expr
-    except BaseException as error:
-        return error
+    return expr(subject) if isinstance(expr, AbstractExpression) else expr
+
+class Matcher:
+    def __init__(self, expr):
+        self.expr = expr
+    def __eq__(self, subject):
+        return evaluate(self.expr, subject)
+
+match = Matcher
 
 def expression():
     def decorator(fn):
