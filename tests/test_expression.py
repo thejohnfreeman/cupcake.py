@@ -39,7 +39,12 @@ def test_in():
     assert(match(pred) not in [4, 5, 6])
     assert(match(pred) not in [])
 
-def test_contains():
+def test_contains_rhs():
     pred = contains([3, 2, 1], subject)
     assert(pred(2))
     assert(not pred(4))
+
+def test_contains_lhs():
+    pred = contains(subject, 3)
+    assert(pred([1, 2, 3]))
+    assert(not pred([4, 5, 6]))
