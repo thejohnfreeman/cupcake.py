@@ -23,7 +23,7 @@ import time
 import typing as t
 import urllib.parse
 
-from cupcake import cascade, confee
+from cupcake import cascade, confee, transformations
 from cupcake.expression import subject, contains
 
 def run(command, *args, **kwargs):
@@ -1095,7 +1095,7 @@ class Cupcake:
 
         metadata = confee.read(source_dir_ / 'cupcake.json')
         confee.add(
-            metadata.groups.main.libraries,
+            metadata.libraries,
             {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
         )
         confee.write(metadata)
@@ -1104,6 +1104,20 @@ class Cupcake:
     @cascade.argument('name', required=True)
     def remove_lib(self, source_dir_, name):
         """Remove a library."""
+        # Find the library in the metadata.
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        libraries = confee.filter(metadata.libraries[:], subject['name'] == name)
+        libraries = list(libraries)
+        # Exit if it is missing or ambiguous.
+        if len(libraries) < 1:
+            raise SystemExit(f'unknown library name: {name}')
+        if len(libraries) > 1:
+            raise SystemExit(f'ambiguous library name: {name}')
+        [proxy] = libraries
+        library = proxy()
+        confee.delete(proxy)
+
+        # TODO: Remove its sources according to its section.
         (source_dir_ / 'include' / f'{name}.hpp').unlink(missing_ok=True)
         (source_dir_ / 'include' / f'{name}.h').unlink(missing_ok=True)
         try:
@@ -1118,19 +1132,39 @@ class Cupcake:
         except FileNotFoundError:
             pass
 
-        # TODO: Search for all includes of the library and remove them?
-
-        metadata = confee.read(source_dir_ / 'cupcake.json')
-        confee.remove_if(metadata.groups.main.libraries, subject['name'] == name)
-        # Search for all links to the library and remove them.
+        # Find links to the library in the metadata.
         # It must be an internal library.
         targets = [f'${{PROJECT_NAME}}.lib{name}']
         if metadata.project.name:
             targets.append(f'{metadata.project.name()}.lib{name}')
-        confee.remove_if(
-            metadata.groups[:][{'libraries', 'executables', 'tests'}][:].links,
-            contains(targets, subject) | contains(targets, subject['target']),
-        )
+
+        for kind in {'libraries', 'executables', 'tests'}:
+            for target in metadata[kind]:
+                for link in target.links:
+                    # Take target from shorthand or longhand.
+                    ltarget = link()
+                    if 'target' in ltarget:
+                        ltarget = ltarget['target']
+                    # Proceed only if target matches removed library.
+                    if ltarget not in targets:
+                        continue
+                    # Remove link from metadata.
+                    confee.delete(link)
+                    # Remove includes from source files.
+                    section = 'tests' if kind == 'tests' else 'exports'
+                    section = target.section(section)
+                    root = 'tests' if section == 'tests' else 'src'
+                    root = pathlib.Path(root)
+                    for suffix in ('h', 'hpp', 'c', 'cpp'):
+                        if (file := root / f'{name}.{suffix}').is_file():
+                            print(file)
+                            transformations.remove_includes(file, name)
+                    for parent, _, files in os.walk(root / name):
+                        parent = pathlib.Path(parent)
+                        for file in files:
+                            print(parent / file)
+                            transformations.remove_includes(parent / file, name)
+
         confee.write(metadata)
 
     @cascade.command()
