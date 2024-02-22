@@ -48,13 +48,20 @@ from cupcake.expression import evaluate
 _MISSING = object()
 _SELVES = {}
 
+class CancelOperation(BaseException):
+    """Signal the calling context to not commit any changes."""
+
 @contextlib.contextmanager
 def atomic(pathlike, *args, **kwargs):
     dst = pathlib.Path(pathlike)
     kwargs['delete'] = False
     # Write to temporary file and then atomically move into place.
     with tempfile.NamedTemporaryFile(*args, **kwargs) as file:
-        yield file
+        try:
+            yield file
+        except CancelOperation:
+            return
+        # Other exceptions will cancel AND bubble.
     src = pathlib.Path(file.name)
     try:
         # https://stackoverflow.com/a/21116654/618906
