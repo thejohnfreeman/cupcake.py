@@ -98,7 +98,7 @@ def test_remove_library(config):
         {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
     ]
     assert(config.groups.main.libraries)
-    confee.remove_if(config.groups.main.libraries, subject['name'] == name)
+    confee.remove_if(config.groups.main.libraries[:], subject['name'] == name)
     assert(not config.groups.main.libraries)
 
 def test_unlink_library(config):
@@ -114,7 +114,7 @@ def test_unlink_library(config):
         {'name': 'xyz', 'links': [{ 'target': target, 'scope': 'PUBLIC' }] },
     ]
     confee.remove_if(
-        config.groups[:][{'libraries', 'executables', 'tests'}][:].links,
+        config.groups[:][{'libraries', 'executables', 'tests'}][:].links[:],
         (subject == target) | (subject['target'] == target),
     )
     assert(config.groups.main.libraries() == [

@@ -323,17 +323,17 @@ def delete(proxy):
     self = _SELVES[proxy]
     return self.parent.delete(self.name)
 
-def add(proxies, item):
+def add(proxy, item):
+    items = proxy([])
+    set(proxy, items + type(items)([item]))
+
+def filter(proxies, pred):
     for proxy in proxies:
-        items = proxy([])
-        set(proxy, items + type(items)([item]))
+        if evaluate(pred, proxy()):
+            yield proxy
 
 def remove_if(proxies, pred):
     for proxy in proxies:
         # Is no default correct here?
-        items = proxy()
-        items = [item for item in items if not evaluate(pred, item)]
-        if items:
-            set(proxy, items)
-        else:
+        if evaluate(pred, proxy()):
             delete(proxy)
