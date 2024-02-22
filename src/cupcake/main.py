@@ -529,7 +529,7 @@ class Cupcake:
         profile,
         options,
     ):
-        """Configure Conan."""
+        """Configure Conan for all enabled flavors."""
         if not conanfile_path_:
             return
         # TODO: Respect `conan config get general.default_profile`.
@@ -644,7 +644,7 @@ class Cupcake:
         variables,
         unvariables,
     ):
-        """Configure CMake."""
+        """Configure CMake for at least the selected flavor."""
         # Variables are a little unique.
         # We must start with `config.cmake.variables` (default `{}`),
         # override with `variables`,
