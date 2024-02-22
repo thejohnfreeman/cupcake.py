@@ -990,7 +990,7 @@ class Cupcake:
     @cascade.command()
     # TODO: Mutually exclusive option group to choose dependency group.
     @cascade.option(
-        '--test', '-T', 'as_test', is_flag=True, help='As a test requirement.',
+        '--test', '-T', 'as_test', is_flag=True, help='In the "test" group.',
     )
     @cascade.argument('name')
     def add(self, CONAN, source_dir_, conanfile_path_, as_test, name):
