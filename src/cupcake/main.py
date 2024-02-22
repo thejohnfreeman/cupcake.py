@@ -160,7 +160,7 @@ def pack_directory(path):
     yield path
 
 @contextmanager
-def pack_github(path):
+def export_github(path):
     """Return a path to a Conan package directory identified by _url_."""
     with tempfile.TemporaryDirectory() as tmp:
         user, project, suffix = re.match(PATTERN_GITHUB_PATH, path).groups()
@@ -1118,9 +1118,9 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('url', default='.')
-    def pack(self, CONAN, url):
+    def export(self, CONAN, url):
         """
-        Add a Conan package to your local cache.
+        Copy a Conan package to your local cache.
 
         For this command, it is important to understand the idea of a "Conan
         package directory", which is a directory containing a `conanfile.py`
@@ -1143,9 +1143,9 @@ class Cupcake:
         if parts.scheme in ('http', 'https'):
             if parts.netloc != 'github.com':
                 raise ValueError('unknown URL')
-            context = pack_github(parts.path)
+            context = export_github(parts.path)
         elif parts.scheme == 'gh':
-            context = pack_github(parts.path)
+            context = export_github(parts.path)
         elif parts.scheme in ('', 'file'):
             context = pack_directory(parts.path)
         with context as path:
