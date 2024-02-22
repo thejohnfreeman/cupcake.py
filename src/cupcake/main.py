@@ -1058,6 +1058,23 @@ class Cupcake:
         update_dependency(metadata, 'test', name, const(None))
         confee.write(metadata)
 
+    @cascade.command()
+    def list(self, source_dir_):
+        """List targets."""
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        prefixes = {
+            'libraries': 'lib',
+            'executables': '',
+            'tests': 'test.'
+        }
+        targets = [
+            f'{prefixes[kind]}{name()}'
+            for kind in ['libraries', 'executables', 'tests']
+            for name in metadata[kind][:].name
+        ]
+        for target in targets:
+            print(target)
+
     @cascade.command('add:lib')
     @cascade.option('--header-only', is_flag=True, help='Whether to create a source file.')
     @cascade.argument('name', required=True)
