@@ -19,7 +19,7 @@ def executable(request):
 def tests(request):
     return request.param
 
-def test_cwd(sh, special, library, executable, tests):
+def test_new(sh, special, library, executable, tests):
     args = []
     env = dict(os.environ)
     if not special:

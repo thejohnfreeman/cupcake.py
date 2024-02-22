@@ -169,19 +169,20 @@ def export_github(path):
         run(['git', 'clone', f'https://github.com/{user}/{project}', tmp])
         yield tmp + suffix
 
-def update_dependency(metadata, group, name, f):
-    dependencies = metadata.dependencies[group]([])
-    i = next((i for i, d in enumerate(dependencies) if d['name'] == name), -1)
+def update_requirement(metadata, name, f):
+    # TODO: Turn this into a confee function?
+    requirements = metadata.imports([])
+    i = next((i for i, d in enumerate(requirements) if d['name'] == name), -1)
     if i < 0:
         before = None
     else:
-        before = dependencies[i]
-        del dependencies[i:i+1]
+        before = requirements[i]
+        del requirements[i:i+1]
     after = f(before)
     if after is not None:
-        dependencies.append(after)
-    dependencies.sort(key=lambda item: item['name'])
-    metadata.dependencies[group] = dependencies
+        requirements.append(after)
+    requirements.sort(key=lambda item: item['name'])
+    metadata.imports = requirements
 
 class SearchResult:
     """Representation for a Conan package search result."""
@@ -354,15 +355,15 @@ class ChangeRequirements(cst.CSTTransformer):
             re.match(r'^[\'"]([^/]+)/(.*)[\'"]$', e.value.value)
             for e in new.value.elements
         ]
-        ids = {match.group(1): match.group(2) for match in matches}
-        ids = self.change_(ids)
-        ids = [f'{k}/{v}' for k, v in ids.items()]
-        ids = sorted(ids)
+        requirements = {match.group(1): match.string for match in matches}
+        requirements = self.change_(requirements)
+        requirements = requirements.values()
+        requirements = sorted(requirements)
         elements = [
             cst.Element(
-                value=cst.SimpleString(f"'{id}'"),
+                value=cst.SimpleString(requirement),
                 comma=cst.Comma(whitespace_after=cstNewLine('    ')),
-            ) for id in ids
+            ) for requirement in requirements
         ]
         elements[-1] = cst.Element(value=elements[-1].value, comma=cst.Comma())
         return new.with_changes(
@@ -375,15 +376,15 @@ class ChangeRequirements(cst.CSTTransformer):
 
 class AddRequirement(ChangeRequirements):
 
-    def __init__(self, property, name, version):
+    def __init__(self, property, name, reference):
         super().__init__(properties=[property])
         self.name = name
-        self.version = version
+        self.reference = f"'{reference}'"
 
-    def change_(self, ids):
-        if self.name not in ids:
-            ids[self.name] = self.version
-        return ids
+    def change_(self, requirements):
+        if self.name not in requirements:
+            requirements[self.name] = self.reference
+        return requirements
 
 class RemoveRequirement(ChangeRequirements):
 
@@ -391,9 +392,9 @@ class RemoveRequirement(ChangeRequirements):
         super().__init__(properties=['requires', 'test_requires'])
         self.name = name
 
-    def change_(self, ids):
-        ids.pop(self.name, None)
-        return ids
+    def change_(self, requirements):
+        requirements.pop(self.name, None)
+        return requirements
 
 # We want commands to call dependencies,
 # and want them to be able to pass options.
@@ -823,7 +824,7 @@ class Cupcake:
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
     @cascade.option(
-        '--version', help='Version of requirement cupcake@github/thejohnfreeman.', default='0.6.0',
+        '--version', help='Version of requirement cupcake@github/thejohnfreeman.', default='0.7.0',
     )
     @cascade.option(
         '--special/--general', help='Whether to enable special commands.', default=True,
@@ -925,7 +926,7 @@ class Cupcake:
             metadata = confee.read(prefix / 'cupcake.json')
             metadata.project.name = name
             if library:
-                metadata.groups.main.libraries = [
+                metadata.libraries = [
                     {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
                 ]
             if executable:
@@ -933,20 +934,21 @@ class Cupcake:
                 if library:
                     links.append(f'{name}.lib{name}')
                 exe = {'name': name, 'links': links}
-                metadata.groups.main.executables = [exe]
+                metadata.executables = [exe]
             if tests:
-                metadata.groups.test.imports = [
+                metadata.imports = [
                     {
                         'name': 'doctest',
                         'file': 'doctest',
                         'targets': ['doctest::doctest'],
+                        'groups': ['test'],
                     }
                 ]
                 links = ['${PROJECT_NAME}.imports.test']
                 if library:
                     links.append(f'{name}.lib{name}')
                 test = {'name': name, 'links': links }
-                metadata.groups.test.tests = [test]
+                metadata.tests = [test]
             confee.write(metadata)
 
 
@@ -986,53 +988,69 @@ class Cupcake:
             remote = remote if remote else '<local>'
             print(f'{remote:20} {result}')
 
-    # TODO: Handle reference ending in '@'.
     @cascade.command()
-    # TODO: Mutually exclusive option group to choose dependency group.
+    # TODO: Mutually exclusive option group to choose requirement group.
     @cascade.option(
-        '--test', '-T', 'as_test', is_flag=True, help='In the "test" group.',
+        '--group', '-g', metavar='GROUP', multiple=True, default=('main',),
+        help='Requirement groups, e.g. "main" or "test".',
     )
-    @cascade.argument('name')
-    def add(self, CONAN, source_dir_, conanfile_path_, as_test, name):
+    @cascade.argument('query')
+    def add(self, CONAN, source_dir_, conanfile_path_, group, query):
         """Add a requirement."""
         # TODO: Support conanfile.txt.
         if conanfile_path_.name != 'conanfile.py':
             raise SystemExit('missing conanfile.py')
-        results = Conan(CONAN).search(name)
-        if len(results) < 1:
-            raise SystemExit('no matches found')
-        version = results[0].version
+
+        # Parse reference into name/version@user/channel
+        # with optional version, user, and channel.
+        match = re.match('([^/@]+)(?:/([^/@]+))?(?:@([^/@]+)/([^/@]+))?', query)
+        if not match:
+            raise SystemExit(f'not a reference pattern: "{query}"')
+        name, version, user, channel = match.groups()
+
+        if version is None:
+            subquery = f'{name}/*'
+            if user is not None:
+                subquery += f'@{user}/{channel}'
+            results = Conan(CONAN).search(subquery)
+            if len(results) < 1:
+                raise SystemExit('no matches found')
+            version = results[0].version
+
+        reference = f'{name}/{version}'
+        if user is not None:
+            reference += f'@{user}/{channel}'
 
         # Update the recipe.
         # TODO: Add --upgrade option.
-        with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
+        with confee.atomic(conanfile_path_, mode='w') as fout:
             tree = cst.parse_module(conanfile_path_.read_bytes())
             tree = tree.visit(AddRequirement(
-                'test_requires' if as_test else 'requires', name, version,
+                'test_requires' if (group == ('test',)) else 'requires',
+                name,
+                reference,
             ))
-            recipe_out.write(tree.code)
-            recipe_out.flush()
-            shutil.copy(recipe_out.name, conanfile_path_)
+            fout.write(tree.code)
 
         # Find the CMake names.
-        names = Conan(CONAN).get_cmake_names(f'{name}/{version}')
+        names = Conan(CONAN).get_cmake_names(reference)
 
         # Find the cupcake.json.
         path = source_dir_ / 'cupcake.json'
         metadata = confee.read(path)
 
-        # Add or update the dependency.
-        group = 'test' if as_test else 'main'
-        def add_dependency(before):
+        # Add or update the requirement.
+        def add_requirement(before):
             if before is not None:
-                # TODO: Update existing dependency.
-                raise SystemExit(f'{name} already in dependencies.{group}')
+                # TODO: Update existing requirement.
+                raise SystemExit(f'{name} already in imports')
             return {
                 'name': name,
                 'file': names['file'],
-                'targets': names['targets']
+                'targets': names['targets'],
+                'groups': group,
             }
-        update_dependency(metadata, group, name, add_dependency)
+        update_requirement(metadata, name, add_requirement)
 
         # Update cupcake.json.
         confee.write(metadata)
@@ -1044,19 +1062,22 @@ class Cupcake:
         # TODO: Support conanfile.txt.
         if conanfile_path_.name != 'conanfile.py':
             raise SystemExit('missing conanfile.py')
-        with tempfile.NamedTemporaryFile(mode='w') as recipe_out:
-            tree = cst.parse_module(conanfile_path_.read_bytes())
-            tree = tree.visit(RemoveRequirement(name))
-            recipe_out.write(tree.code)
-            recipe_out.flush()
-            shutil.copy(recipe_out.name, conanfile_path_)
 
-        # Find the cupcake.json.
         path = source_dir_ / 'cupcake.json'
         metadata = confee.read(path)
-        update_dependency(metadata, 'main', name, const(None))
-        update_dependency(metadata, 'test', name, const(None))
+        imports = confee.filter(metadata.imports[:], subject['name'] == name)
+        imports = list(imports)
+        # Exit if it is missing or ambiguous.
+        if len(imports) < 1:
+            raise SystemExit(f'requirement not found: {name}')
+        assert(len(imports) == 1)
+        update_requirement(metadata, name, const(None))
         confee.write(metadata)
+
+        with confee.atomic(conanfile_path_, mode='w') as fout:
+            tree = cst.parse_module(conanfile_path_.read_bytes())
+            tree = tree.visit(RemoveRequirement(name))
+            fout.write(tree.code)
 
     @cascade.command()
     def list(self, source_dir_):
