@@ -19,7 +19,7 @@ def executable(request):
 def tests(request):
     return request.param
 
-def test_new(sh, special, library, executable, tests):
+def test_new(sh, version, special, library, executable, tests):
     args = []
     env = dict(os.environ)
     if not special:
@@ -31,7 +31,7 @@ def test_new(sh, special, library, executable, tests):
         args.append('--no-executable')
     if not tests:
         args.append('--no-tests')
-    sh> sh.cupcake('new', 'foo', *args).env(env)
+    sh> sh.cupcake('new', 'foo', '--version', version, *args).env(env)
     sh = sh @ 'foo'
     command = 'test' if tests else 'exe' if executable else 'build'
     sh> sh.cupcake(command)

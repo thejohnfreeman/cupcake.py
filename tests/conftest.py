@@ -4,8 +4,7 @@ import shush
 import tempfile
 
 def pytest_addoption(parser):
-    # TODO: Take default version from library.
-    parser.addoption('--cupcake', action='store', default='0.7.0')
+    parser.addoption('--cupcake', action='store', default='alpha')
 
 @pytest.fixture(scope='session')
 def version(request):

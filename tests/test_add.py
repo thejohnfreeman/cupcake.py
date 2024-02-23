@@ -11,8 +11,8 @@ import shutil
     ('fmt.test.cpp', 'foo/tests/foo.cpp', 'test', 'test'),
     ('fmt.executable.cpp', 'foo/src/foo.cpp', 'exe', 'main'),
 ])
-def test_add_requirement(cwd, sh, reference, src, dst, command, group):
-    sh> sh.cupcake('new', 'foo', '--no-library')
+def test_add_requirement(cwd, sh, version, reference, src, dst, command, group):
+    sh> sh.cupcake('new', 'foo', '--version', version, '--no-library')
     sh = sh @ 'foo'
     source = resources.as_file(
         resources.files('tests')
@@ -33,8 +33,8 @@ def test_add_requirement(cwd, sh, reference, src, dst, command, group):
         sh> sh.cupcake('remove', 'fmt')
 
 @pytest.mark.parametrize('kind', ['lib'])
-def test_add_target(sh, kind):
-    sh> sh.cupcake('new', 'foo')
+def test_add_target(sh, version, kind):
+    sh> sh.cupcake('new', 'foo', '--version', version)
     sh = sh @ 'foo'
     sh> sh.cupcake('build')
     sh> sh.cupcake('test')
