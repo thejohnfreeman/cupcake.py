@@ -29,6 +29,6 @@ jobs:
           poetry install
       - name: test project
         run: |
-          poetry run pytest tests
+          poetry run pytest tests --cov cupcake
           conan export submodules/project-template-cpp/cupcake
-          poetry run pytest submodules/project-template-cpp/tests --builder cupcake
+          poetry run pytest submodules/project-template-cpp/tests --cov cupcake --cov-append --builder cupcake
