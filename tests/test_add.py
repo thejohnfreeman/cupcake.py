@@ -12,7 +12,8 @@ import shutil
     ('fmt.executable.cpp', 'foo/src/foo.cpp', 'exe', 'main'),
 ])
 def test_add_requirement(cwd, sh, reference, src, dst, command, group):
-    sh> sh.cupcake('new', 'foo')
+    sh> sh.cupcake('new', 'foo', '--no-library')
+    sh = sh @ 'foo'
     source = resources.as_file(
         resources.files('tests')
         .joinpath('data')
@@ -22,11 +23,32 @@ def test_add_requirement(cwd, sh, reference, src, dst, command, group):
     with source as source:
         shutil.copy(source, cwd / dst)
     with pytest.raises(subprocess.CalledProcessError):
-        sh> sh.cupcake(command, '-S', 'foo', '-B', '.build')
-    sh> sh.cupcake('add', reference, '--group', group, '-S', 'foo')
-    sh> sh.cupcake(command, '-S', 'foo', '-B', '.build')
-    sh> sh.cupcake('remove', 'fmt', '-S', 'foo')
+        sh> sh.cupcake(command)
+    sh> sh.cupcake('add', reference, '--group', group)
+    sh> sh.cupcake(command)
+    sh> sh.cupcake('remove', 'fmt')
     with pytest.raises(subprocess.CalledProcessError):
-        sh> sh.cupcake(command, '-S', 'foo', '-B', '.build')
+        sh> sh.cupcake(command)
     with pytest.raises(subprocess.CalledProcessError):
-        sh> sh.cupcake('remove', 'fmt', '-S', 'foo')
+        sh> sh.cupcake('remove', 'fmt')
+
+@pytest.mark.parametrize('kind', ['lib'])
+def test_add_target(sh, kind):
+    sh> sh.cupcake('new', 'foo')
+    sh = sh @ 'foo'
+    sh> sh.cupcake('build')
+    sh> sh.cupcake('test')
+    proc = sh.here> sh.cupcake('list') | sh.wc('-l')
+    assert(proc.stdout == b'3\n')
+
+    sh> sh.cupcake(f'add:{kind}', 'bar')
+    sh> sh.cupcake('build')
+    sh> sh.cupcake('test')
+    proc = sh.here> sh.cupcake('list') | sh.wc('-l')
+    assert(proc.stdout == b'4\n')
+
+    sh> sh.cupcake(f'remove:{kind}', 'bar')
+    sh> sh.cupcake('build')
+    sh> sh.cupcake('test')
+    proc = sh.here> sh.cupcake('list') | sh.wc('-l')
+    assert(proc.stdout == b'3\n')

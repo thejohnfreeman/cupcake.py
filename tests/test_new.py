@@ -32,6 +32,7 @@ def test_new(sh, special, library, executable, tests):
     if not tests:
         args.append('--no-tests')
     sh> sh.cupcake('new', 'foo', *args).env(env)
+    sh = sh @ 'foo'
     command = 'test' if tests else 'exe' if executable else 'build'
-    sh> sh.cupcake(command, '-S', 'foo', '-B', '.build')
-    sh> sh.cupcake('install', '-S', 'foo', '-B', '.build', '--prefix', '.install')
+    sh> sh.cupcake(command)
+    sh> sh.cupcake('install')

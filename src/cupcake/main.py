@@ -1160,8 +1160,8 @@ class Cupcake:
             targets.append(f'{metadata.project.name()}.lib{name}')
 
         for kind in {'libraries', 'executables', 'tests'}:
-            for target in metadata[kind]:
-                for link in target.links:
+            for target in metadata[kind][:]:
+                for link in target.links[:]:
                     # Take target from shorthand or longhand.
                     ltarget = link()
                     if 'target' in ltarget:

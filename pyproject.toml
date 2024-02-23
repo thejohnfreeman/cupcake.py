@@ -16,9 +16,10 @@ tomlkit = "^0.10.1"
 jinja2 = "^3.1.1"
 libcst = "^0.4.9"
 
-[tool.poetry.dev-dependencies]
-shush = "^0.3.1"
+[tool.poetry.group.dev.dependencies]
+shush = "^0.3.2"
 pytest = "^7.0.1"
+pytest-cov = "^4.1.0"
 pytest-xdist = "^3.2.1"
 
 [build-system]
