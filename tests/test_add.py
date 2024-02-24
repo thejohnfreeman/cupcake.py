@@ -32,7 +32,7 @@ def test_add_requirement(cwd, sh, version, reference, src, dst, command, group):
     with pytest.raises(subprocess.CalledProcessError):
         sh> sh.cupcake('remove', 'fmt')
 
-@pytest.mark.parametrize('kind', ['lib', 'exe'])
+@pytest.mark.parametrize('kind', ['lib', 'exe', 'test'])
 def test_add_target(sh, version, kind):
     sh> sh.cupcake('new', 'foo', '--version', version)
     sh = sh @ 'foo'

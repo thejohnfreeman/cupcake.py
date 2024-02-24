@@ -1235,6 +1235,53 @@ class Cupcake:
 
         confee.write(metadata)
 
+    @cascade.command('add:test')
+    @cascade.argument('name', required=True)
+    def add_test(self, source_dir_, name):
+        """Add a test."""
+        loader = jinja2.PackageLoader('cupcake', 'data/new')
+        jenv = jinja2.Environment(
+            loader=loader,
+            keep_trailing_newline=True,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+
+        tnames = ['tests/{{name}}.cpp']
+        self.generate_(jenv, source_dir_, tnames, name, context={})
+
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        confee.add(
+            metadata.tests,
+            {'name': name, 'links': ['${PROJECT_NAME}.imports.test'] },
+        )
+        confee.write(metadata)
+
+    @cascade.command('remove:test')
+    @cascade.argument('name', required=True)
+    def remove_test(self, source_dir_, name):
+        """Remove a test."""
+        # Find the test in the metadata.
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        tests = confee.filter(metadata.tests[:], subject['name'] == name)
+        tests = list(tests)
+        # Exit if it is missing or ambiguous.
+        if len(tests) < 1:
+            raise SystemExit(f'unknown test name: {name}')
+        if len(tests) > 1:
+            raise SystemExit(f'ambiguous test name: {name}')
+        [proxy] = tests
+        confee.delete(proxy)
+
+        (source_dir_ / 'tests' / f'{name}.cpp').unlink(missing_ok=True)
+        (source_dir_ / 'tests' / f'{name}.c').unlink(missing_ok=True)
+        try:
+            shutil.rmtree(source_dir_ / 'tests' / f'{name}')
+        except FileNotFoundError:
+            pass
+
+        confee.write(metadata)
+
     @cascade.command()
     @cascade.argument('url', default='.')
     def export(self, CONAN, url):
