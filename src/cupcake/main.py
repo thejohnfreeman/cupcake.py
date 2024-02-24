@@ -1188,6 +1188,53 @@ class Cupcake:
 
         confee.write(metadata)
 
+    @cascade.command('add:exe')
+    @cascade.argument('name', required=True)
+    def add_exe(self, source_dir_, name):
+        """Add an executable."""
+        loader = jinja2.PackageLoader('cupcake', 'data/new')
+        jenv = jinja2.Environment(
+            loader=loader,
+            keep_trailing_newline=True,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+
+        tnames = ['src/{{name}}.cpp']
+        self.generate_(jenv, source_dir_, tnames, name, context={})
+
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        confee.add(
+            metadata.executables,
+            {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
+        )
+        confee.write(metadata)
+
+    @cascade.command('remove:exe')
+    @cascade.argument('name', required=True)
+    def remove_exe(self, source_dir_, name):
+        """Remove an executable."""
+        # Find the executable in the metadata.
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        executables = confee.filter(metadata.executables[:], subject['name'] == name)
+        executables = list(executables)
+        # Exit if it is missing or ambiguous.
+        if len(executables) < 1:
+            raise SystemExit(f'unknown executable name: {name}')
+        if len(executables) > 1:
+            raise SystemExit(f'ambiguous executable name: {name}')
+        [proxy] = executables
+        confee.delete(proxy)
+
+        (source_dir_ / 'src' / f'{name}.cpp').unlink(missing_ok=True)
+        (source_dir_ / 'src' / f'{name}.c').unlink(missing_ok=True)
+        try:
+            shutil.rmtree(source_dir_ / 'src' / f'{name}')
+        except FileNotFoundError:
+            pass
+
+        confee.write(metadata)
+
     @cascade.command()
     @cascade.argument('url', default='.')
     def export(self, CONAN, url):

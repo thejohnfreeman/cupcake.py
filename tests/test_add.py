@@ -32,23 +32,26 @@ def test_add_requirement(cwd, sh, version, reference, src, dst, command, group):
     with pytest.raises(subprocess.CalledProcessError):
         sh> sh.cupcake('remove', 'fmt')
 
-@pytest.mark.parametrize('kind', ['lib'])
+@pytest.mark.parametrize('kind', ['lib', 'exe'])
 def test_add_target(sh, version, kind):
     sh> sh.cupcake('new', 'foo', '--version', version)
     sh = sh @ 'foo'
     sh> sh.cupcake('build')
     sh> sh.cupcake('test')
+    sh> sh.cupcake('install')
     proc = sh.here> sh.cupcake('list') | sh.wc('-l')
     assert(proc.stdout.strip() == b'3')
 
     sh> sh.cupcake(f'add:{kind}', 'bar')
     sh> sh.cupcake('build')
     sh> sh.cupcake('test')
+    sh> sh.cupcake('install')
     proc = sh.here> sh.cupcake('list') | sh.wc('-l')
     assert(proc.stdout.strip() == b'4')
 
     sh> sh.cupcake(f'remove:{kind}', 'bar')
     sh> sh.cupcake('build')
     sh> sh.cupcake('test')
+    sh> sh.cupcake('install')
     proc = sh.here> sh.cupcake('list') | sh.wc('-l')
     assert(proc.stdout.strip() == b'3')
