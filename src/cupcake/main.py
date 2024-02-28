@@ -8,8 +8,6 @@ import io
 import itertools
 import jinja2
 import json
-import libcst as cst
-import libcst.matchers
 import operator
 import os
 import pathlib
@@ -205,46 +203,19 @@ class SearchResult:
         return s
 
 class Conan:
-    def __init__(self, CONAN):
-        self.CONAN = CONAN
+    def __init__(self, command):
+        self.command = command
 
     def search(self, query):
-        # TODO: Look into Conan Python API. Currently undocumented.
         # TODO: Implement version constraints like Python.
         # Use them to filter list.
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp = pathlib.Path(tmp) / 'search.json'
-
-            # Search local cache.
-            run(
-                [self.CONAN, 'search', '--json', tmp,  query],
-                stdout=subprocess.DEVNULL,
-            )
-            with tmp.open() as f:
-                local = json.load(f)
-            if local['error']:
-                raise SystemExit('unknown error searching local cache')
-
-            # Search remotes.
-            run(
-                [self.CONAN, 'search', '--json', tmp,  query, '--remote', 'all'],
-                stdout=subprocess.DEVNULL,
-            )
-            with tmp.open() as f:
-                remote = json.load(f)
-            if remote['error']:
-                raise SystemExit('unknown error searching remotes')
-
-            results = itertools.chain(local['results'], remote['results'])
-            results = [
-                SearchResult(result['remote'], item['recipe']['id'])
-                for result in results
-                for item in result['items']
-            ]
-            # They seem to be in ascending version order,
-            # but I'm not sure we can rely on that.
-            results = sorted(results, key=SearchResult.key, reverse=True)
-            return results
+        local = self.search_local(query)
+        remote = self.search_remotes(query)
+        results = itertools.chain(local, remote)
+        # They seem to be in ascending version order,
+        # but I'm not sure we can rely on that.
+        results = sorted(results, key=SearchResult.key, reverse=True)
+        return results
 
     def get_cmake_names(self, rref):
         conanfile = resources.as_file(
@@ -256,7 +227,7 @@ class Conan:
             with tempfile.TemporaryDirectory() as build_dir:
                 build_dir = pathlib.Path(build_dir)
                 run([
-                    self.CONAN, 'install',
+                    self.command, 'install',
                     '--build', 'missing',
                     '--install-folder', build_dir,
                     '--output-folder', build_dir,
@@ -266,6 +237,111 @@ class Conan:
                 with (build_dir / 'output.json').open('r') as out:
                     names = json.load(out)
         return names
+
+    @staticmethod
+    def construct(command):
+        stdout = subprocess.check_output(['conan', '--version']).strip()
+        match = re.match(b'^Conan version (\\d)\\.', stdout)
+        if not match:
+            raise SystemExit('unrecognized Conan version')
+        version = int(match.group(1))
+        if version == 1:
+            return Conan1(command)
+        if version == 2:
+            return Conan2(command)
+        raise SystemExit('unsupported Conan version')
+
+    def search_local(self, query):
+        """Search the local cache."""
+
+    def search_remotes(self, query):
+        """Search all remotes."""
+
+    def find_profile(self, name) -> pathlib.Path:
+        """Return path to named profile."""
+
+
+class Conan1(Conan):
+    """Conan 1.x specialization."""
+
+    def find_profile(self, name):
+        return pathlib.Path.home() / '.conan/profiles' / name
+
+    def search_local(self, query):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp) / 'search.json'
+            run(
+                [self.command, 'search', '--json', tmp,  query],
+                stdout=subprocess.DEVNULL,
+            )
+            with tmp.open() as file:
+                results = json.load(file)
+            # {"error": bool, "results": [{"remote": null, "items": [{"recipe": {"id": reference}}]}]}
+            if results['error']:
+                raise SystemExit('unknown error searching local cache')
+            return _parse_search_v1(results)
+
+    def search_remotes(self, query):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp) / 'search.json'
+            run(
+                [self.command, 'search', '--json', tmp,  query, '--remote', 'all'],
+                stdout=subprocess.DEVNULL,
+            )
+            with tmp.open() as file:
+                results = json.load(file)
+            # {"error": bool, "results": [{"remote": name, "items": [{"recipe": {"id": reference}}]}]}
+            if results['error']:
+                raise SystemExit('unknown error searching remotes')
+            return _parse_search_v1(results)
+
+def _parse_search_v1(results):
+    return [
+        SearchResult(result['remote'], item['recipe']['id'])
+        for result in results['results']
+        for item in result['items']
+    ]
+
+
+class Conan2(Conan):
+    """Conan 2.x specialization."""
+
+    def find_profile(self, name):
+        stdout = subprocess.check_output(
+            [self.command, 'profile', 'path', name]
+        ).strip()
+        return pathlib.Path(stdout.decode())
+
+    def search_local(self, query):
+        proc = run(
+            [self.command, 'list', '--format', 'json',  query],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        # { "Local Cache": { reference: {}, ... } }
+        results = json.loads(proc.stdout)
+        results = {None: results['Local Cache']}
+        return _parse_search_v2(results)
+
+    def search_remotes(self, query):
+        # TODO: Look into Conan Python API. Currently undocumented.
+        proc = run(
+            [self.command, 'search', '--format', 'json',  query],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        # { name: { reference: {}, ... }, name: { "error": str }
+        results = json.loads(proc.stdout)
+        return _parse_search_v2(results)
+
+def _parse_search_v2(results):
+    return [
+        SearchResult(remote, reference)
+        for remote in results
+        for reference in results[remote]
+        if reference != 'error'
+    ]
+
 
 class CMake:
     def __init__(self, CMAKE):
@@ -326,76 +402,6 @@ TEST_TEMPLATE_ = """
 --target {% if multiConfig %} RUN_TESTS {% else %} test {% endif %}
 """
 
-def cstNewLine(indent=''):
-    return cst.ParenthesizedWhitespace(
-        indent=True,
-        last_line=cst.SimpleWhitespace(indent),
-    )
-
-class ChangeRequirements(cst.CSTTransformer):
-
-    def __init__(self, properties=['requires']):
-        m = cst.matchers
-        self.properties = m.OneOf(*map(m.Name, properties))
-
-    def leave_Assign(self, old, new):
-        m = cst.matchers
-        if len(new.targets) != 1:
-            return new
-        if not m.matches(new.targets[0].target, self.properties):
-            return new
-        if not m.matches(
-            new.value,
-            (m.List | m.Set | m.Tuple)(
-                elements=[m.ZeroOrMore(m.Element(value=m.SimpleString()))]
-            )
-        ):
-            raise SystemExit('requirements is not a list of strings')
-        matches = [
-            re.match(r'^[\'"]([^/]+)/(.*)[\'"]$', e.value.value)
-            for e in new.value.elements
-        ]
-        requirements = {match.group(1): match.string for match in matches}
-        requirements = self.change_(requirements)
-        requirements = requirements.values()
-        requirements = sorted(requirements)
-        elements = [
-            cst.Element(
-                value=cst.SimpleString(requirement),
-                comma=cst.Comma(whitespace_after=cstNewLine('    ')),
-            ) for requirement in requirements
-        ]
-        elements[-1] = cst.Element(value=elements[-1].value, comma=cst.Comma())
-        return new.with_changes(
-            value=new.value.with_changes(
-                elements=elements,
-                lbracket=cst.LeftSquareBracket(whitespace_after=cstNewLine('    ')),
-                rbracket=cst.RightSquareBracket(whitespace_before=cstNewLine()),
-            )
-        )
-
-class AddRequirement(ChangeRequirements):
-
-    def __init__(self, property, name, reference):
-        super().__init__(properties=[property])
-        self.name = name
-        self.reference = f"'{reference}'"
-
-    def change_(self, requirements):
-        if self.name not in requirements:
-            requirements[self.name] = self.reference
-        return requirements
-
-class RemoveRequirement(ChangeRequirements):
-
-    def __init__(self, name):
-        super().__init__(properties=['requires', 'test_requires'])
-        self.name = name
-
-    def change_(self, requirements):
-        requirements.pop(self.name, None)
-        return requirements
-
 # We want commands to call dependencies,
 # and want them to be able to pass options.
 # That means dependent command must accept all the options of all its
@@ -410,7 +416,7 @@ class Cupcake:
     @cascade.value()
     @cascade.option(
         '--source-dir', '-S',
-        help='Absolute path or relative to current directory.',
+        help='Path to source directory. Absolute, or relative to current directory.',
         metavar='PATH',
         default='.',
     )
@@ -421,7 +427,7 @@ class Cupcake:
     @cascade.option(
         '--config',
         default='.cupcake.toml',
-        help='Absolute path or relative to source directory.',
+        help='Path to Cupcake configuration file. Absolute, or relative to source directory.',
         metavar='PATH',
     )
     def config_(self, source_dir_, config):
@@ -431,7 +437,8 @@ class Cupcake:
     @cascade.value()
     def CONAN(self, config_):
         # TODO: Enable overrides from environment.
-        return confee.resolve(None, config_.CONAN, 'conan')
+        command = confee.resolve(None, config_.CONAN, 'conan')
+        return Conan.construct(command)
 
     @cascade.value()
     def CMAKE(self, config_):
@@ -440,7 +447,7 @@ class Cupcake:
     @cascade.value()
     @cascade.option(
         '--build-dir', '-B',
-        help='Absolute path or relative to source directory.',
+        help='Path to build directory. Absolute, or relative to source directory.',
         metavar='PATH',
     )
     def build_dir_path_(self, source_dir_, config_, build_dir) -> pathlib.Path:
@@ -544,11 +551,14 @@ class Cupcake:
 
         # TODO: Accept parameter to override settings.
         # TODO: Find path to profile.
-        profile_path = pathlib.Path.home() / '.conan/profiles' / profile
+        profile_path = CONAN.find_profile(profile)
         m = hashlib.sha256()
         # TODO: Separate values with markers to disambiguate.
         m.update(profile_path.read_bytes())
         m.update(conanfile_path_.read_bytes())
+        path = source_dir_ / 'cupcake.json'
+        if path.is_file():
+            m.update(path.read_bytes())
         for name, value in copts.items():
             m.update(name.encode())
             m.update(value.encode())
@@ -566,7 +576,7 @@ class Cupcake:
                 diff_flavors = new_flavors
         conan_dir.mkdir(parents=True, exist_ok=True)
         command = [
-            CONAN, 'install', source_dir_, '--build', 'missing',
+            CONAN.command, 'install', source_dir_, '--build', 'missing',
             '--output-folder', conan_dir,
             '--profile:build', profile, '--profile:host', profile,
         ]
@@ -585,6 +595,11 @@ class Cupcake:
         toolchain = conan_dir / 'conan_toolchain.cmake'
         if not toolchain.exists():
             toolchain = conan_dir / 'build' / 'generators' / 'conan_toolchain.cmake'
+        if not toolchain.exists():
+            for flavor in ['Debug', 'Release']:
+                toolchain = conan_dir / 'build' / flavor / 'generators' / 'conan_toolchain.cmake'
+                if toolchain.exists():
+                    break
         if not toolchain.exists():
             raise Exception('cannot find toolchain file')
         state_.conan.toolchain = str(toolchain)
@@ -664,9 +679,6 @@ class Cupcake:
             m.update(conan.id().encode())
         # TODO: Calculate ID from all files read during configuration.
         m.update((source_dir_ / 'CMakeLists.txt').read_bytes())
-        path = source_dir_ / 'cupcake.json'
-        if path.is_file():
-            m.update(path.read_bytes())
         if generator is not None:
             m.update(generator.encode())
         if shared:
@@ -939,6 +951,8 @@ class Cupcake:
                 metadata.imports = [
                     {
                         'name': 'doctest',
+                        'version': '2.4.8',
+                        'reference': 'doctest/2.4.8',
                         'file': 'doctest',
                         'targets': ['doctest::doctest'],
                         'groups': ['test'],
@@ -980,7 +994,7 @@ class Cupcake:
     @cascade.argument('query')
     def search(self, CONAN, query):
         """Search for packages."""
-        results = Conan(CONAN).search(query)
+        results = CONAN.search(query)
         # Put the top results at the end
         # to guarantee they can be seen without scrolling.
         for result in reversed(results):
@@ -1012,7 +1026,7 @@ class Cupcake:
             subquery = f'{name}/*'
             if user is not None:
                 subquery += f'@{user}/{channel}'
-            results = Conan(CONAN).search(subquery)
+            results = CONAN.search(subquery)
             if len(results) < 1:
                 raise SystemExit('no matches found')
             version = results[0].version
@@ -1021,19 +1035,8 @@ class Cupcake:
         if user is not None:
             reference += f'@{user}/{channel}'
 
-        # Update the recipe.
-        # TODO: Add --upgrade option.
-        with confee.atomic(conanfile_path_, mode='w') as fout:
-            tree = cst.parse_module(conanfile_path_.read_bytes())
-            tree = tree.visit(AddRequirement(
-                'test_requires' if (group == ('test',)) else 'requires',
-                name,
-                reference,
-            ))
-            fout.write(tree.code)
-
         # Find the CMake names.
-        names = Conan(CONAN).get_cmake_names(reference)
+        names = CONAN.get_cmake_names(reference)
 
         # Find the cupcake.json.
         path = source_dir_ / 'cupcake.json'
@@ -1042,10 +1045,12 @@ class Cupcake:
         # Add or update the requirement.
         def add_requirement(before):
             if before is not None:
-                # TODO: Update existing requirement.
+                # TODO: Add --upgrade option.
                 raise SystemExit(f'{name} already in imports')
             return {
                 'name': name,
+                'version': version,
+                'reference': reference,
                 'file': names['file'],
                 'targets': names['targets'],
                 'groups': group,
@@ -1073,11 +1078,6 @@ class Cupcake:
         assert(len(imports) == 1)
         update_requirement(metadata, name, const(None))
         confee.write(metadata)
-
-        with confee.atomic(conanfile_path_, mode='w') as fout:
-            tree = cst.parse_module(conanfile_path_.read_bytes())
-            tree = tree.visit(RemoveRequirement(name))
-            fout.write(tree.code)
 
     @cascade.command()
     def list(self, source_dir_):
@@ -1315,20 +1315,20 @@ class Cupcake:
         elif parts.scheme in ('', 'file'):
             context = pack_directory(parts.path)
         with context as path:
-            run([CONAN, 'export', path])
+            run([CONAN.command, 'export', path])
 
     @cascade.command()
     @cascade.option('--remote', default='github')
     def publish(self, CONAN, source_dir, remote):
         """Upload package to Conan remote."""
         stream = io.BytesIO()
-        tee([CONAN, 'export', source_dir], stream=stream)
+        tee([CONAN.command, 'export', source_dir], stream=stream)
         line = stream.getvalue().splitlines()[-1]
         reference = re.match(rb'([^/]+/[^@]+@[^/]+/[^:]+): Exported revision: ', line)
         if not reference:
             raise SystemExit('cannot find reference in stdout')
         reference = reference.group(1)
-        run([CONAN, 'upload', '--remote', remote, reference])
+        run([CONAN.command, 'upload', '--remote', remote, reference])
 
     @cascade.command()
     def clean(self, build_dir_path_):

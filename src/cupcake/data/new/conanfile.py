@@ -1,5 +1,5 @@
 from conan import ConanFile
-from conan.tools.cmake import CMake
+from conan.tools.cmake import CMake, cmake_layout
 
 class {{ NameTitle }}(ConanFile):
     name = '{{ name }}'
@@ -21,12 +21,19 @@ class {{ NameTitle }}(ConanFile):
     options = {'shared': [True, False], 'fPIC': [True, False]}
     default_options = {'shared': False, 'fPIC': True}
 
-    requires = ['cupcake/{{ version }}@github/thejohnfreeman']
-    test_requires = [{% if with_tests %}'doctest/2.4.8'{% endif %}]
+    requires = [
+        'cupcake/{{ version }}@github/thejohnfreeman',
+        {% if with_tests and not special %}
+        'doctest/2.4.8',
+        {% endif %}
+    ]
     generators = ['CMakeDeps', 'CMakeToolchain']
 
     exports_sources = [
         'CMakeLists.txt',
+        {% if special %}
+        'cupcake.json',
+        {% endif %}
         'cmake/*',
         'external/*',
         'include/*',
@@ -37,10 +44,20 @@ class {{ NameTitle }}(ConanFile):
     # https://docs.conan.io/en/latest/reference/build_helpers/cmake.html#configure
     no_copy_source = True
 
-    def requirements(self):
-        for requirement in self.test_requires:
-            self.requires(requirement)
+    def layout(self):
+        cmake_layout(self)
 
+    {% if special %}
+    def requirements(self):
+        import json
+        import pathlib
+        path = pathlib.Path(self.recipe_folder) / 'cupcake.json'
+        with path.open('r') as file:
+            metadata = json.load(file)
+        for requirement in metadata.get('imports', []):
+            self.requires(requirement['reference'])
+
+    {% endif %}
     def config_options(self):
         if self.settings.os == 'Windows':
             del self.options.fPIC
