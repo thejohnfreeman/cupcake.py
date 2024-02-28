@@ -69,6 +69,8 @@ def group(*args, **kwargs):
                 @group.command(*args, **kwargs)
                 @fn.compose(*parameters.values())
                 @click.pass_context
+                # Set the name of the function to match the command
+                # so that Click will call it.
                 @functools.wraps(member)
                 def command(context, **kwargs):
                     middle = context.obj
