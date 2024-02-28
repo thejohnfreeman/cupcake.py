@@ -229,11 +229,10 @@ class Conan:
                 run([
                     self.command, 'install',
                     '--build', 'missing',
-                    '--install-folder', build_dir,
                     '--output-folder', build_dir,
                     conanfile,
                     '--options', f'requirement={rref}',
-                ], stdout=subprocess.DEVNULL)
+                ], stdout=subprocess.DEVNULL, cwd=build_dir)
                 with (build_dir / 'output.json').open('r') as out:
                     names = json.load(out)
         return names

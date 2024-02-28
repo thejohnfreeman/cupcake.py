@@ -30,8 +30,15 @@ jobs:
       - name: install dependencies
         run: |
           poetry install
+      - name: export cupcake
+        if: matrix.conan == 1
+        run: |
+          conan export submodules/project-template-cpp/cupcake cupcake/alpha@github/thejohnfreeman
+      - name: export cupcake
+        if: matrix.conan == 2
+        run: |
+          conan export submodules/project-template-cpp/cupcake --version alpha --user github --channel thejohnfreeman
       - name: test project
         run: |
-          conan export submodules/project-template-cpp/cupcake
           poetry run pytest tests --cov cupcake
           poetry run pytest submodules/project-template-cpp/tests --cov cupcake --cov-append --builder cupcake
