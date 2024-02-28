@@ -17,14 +17,20 @@ runs:
         echo "${HOME}/.local/bin" >> $GITHUB_PATH
     - name: install Conan
       shell: bash
-      run: pip install wheel 'conan<2'
+      run: pip install wheel 'conan~={{ matrix.conan }}.0'
     - name: configure Conan
+      if: matrix.conan == 1
       shell: bash
       run: |
         conan profile new default --detect
         conan profile update settings.compiler.cppstd=20 default
     - name: configure Conan for GCC
-      if: runner.os == 'Linux'
+      if: matrix.conan == 1 && runner.os == 'Linux'
       shell: bash
       run: |
         conan profile update settings.compiler.libcxx=libstdc++11 default
+    - name: configure Conan
+      if: matrix.conan == 2
+      shell: bash
+      run: |
+        conan profile detect

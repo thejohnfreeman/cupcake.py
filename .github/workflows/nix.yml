@@ -12,6 +12,9 @@ jobs:
         platform:
           - ubuntu
           - macos
+        conan:
+          - 1
+          - 2
     runs-on: ${{ matrix.platform }}-latest
     steps:
       - name: checkout
