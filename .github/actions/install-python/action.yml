@@ -5,7 +5,7 @@ runs:
   using: composite
   steps:
     - name: install Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         # The `imp` module is removed in Python 3.12
         # but required by Conan 1.x.
