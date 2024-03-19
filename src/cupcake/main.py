@@ -137,6 +137,10 @@ key = functools.cmp_to_key(
     lambda a, b: compare_version(a, b)
 )
 
+def assert_legal_name(name):
+    if not re.match(r'^[a-z][a-z0-9-]*$', name):
+        raise SystemExit(f'name must contain only lowercase letters, numbers, and dashes: {name}')
+
 def parse_options(options: t.Iterable[str], default):
     """Parse "name[=value]" strings into a {name: value, ...} dictionary."""
     adds = {}
@@ -978,8 +982,7 @@ class Cupcake:
 
 
     def generate_(self, jenv, prefix, tnames, name, context):
-        if not re.match(r'[a-z][a-z0-9-]*', name):
-            raise SystemExit(f'name must contain only lowercase letters, numbers, and dashes: {name}')
+        assert_legal_name(name)
 
         context = {
             **context,
@@ -1268,6 +1271,35 @@ class Cupcake:
             pass
 
         confee.write(metadata)
+
+    @cascade.command('add:header')
+    @cascade.argument('qname', required=True)
+    def add_header(self, source_dir_, qname):
+        """
+        Add a new header to an existing library.
+
+        The argument should be a qualified name,
+        e.g. "foo.bar.baz" for include/foo/bar/baz.hpp.
+        """
+        namespaces = qname.split('.')
+        for name in namespaces:
+            assert_legal_name(name)
+        path = source_dir_.joinpath('include', *namespaces).with_suffix('.hpp')
+        if path.exists():
+            raise SystemExit(f'file already exists: {path}')
+        name = namespaces.pop()
+
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        if not any(l.name() == namespaces[0] for l in metadata.libraries[:]):
+            raise SystemExit(f'missing library: {namespaces[0]}')
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        jenv = self.jenv_('data/new')
+        template = jenv.get_template('include/{{name}}/{{name}}.hpp')
+        path.write_text(template.render({
+            'namespaces': namespaces,
+            'name': name,
+        }))
 
     @cascade.command()
     @cascade.argument('url', default='.')
