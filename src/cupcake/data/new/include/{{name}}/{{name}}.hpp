@@ -1,12 +1,16 @@
-#ifndef {{ name | snake | upper }}_{{ name | snake | upper }}_HPP
-#define {{ name | snake | upper }}_{{ name | snake | upper }}_HPP
+#ifndef {{ namespaces | map('snake') | join('_') | upper }}_{{ name | snake | upper }}_HPP
+#define {{ namespaces | map('snake') | join('_') | upper }}_{{ name | snake | upper }}_HPP
 
-#include <{{ name }}/export.hpp>
+#include <{{ namespaces[0] }}/export.hpp>
 
-namespace {{ name | snake }} {
+{% for namespace in namespaces %}
+namespace {{ namespace | snake }} {
+{% endfor %}
 
-{{ name | snake | upper }}_EXPORT void {{ name | snake }}();
+{{ namespaces[0] | snake | upper }}_EXPORT void {{ name | snake }}();
 
+{% for namespace in namespaces %}
 }
+{% endfor %}
 
 #endif

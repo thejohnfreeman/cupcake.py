@@ -984,6 +984,7 @@ class Cupcake:
         context = {
             **context,
             'name': name,
+            'namespaces': [name],
         }
 
         for tname in tnames:
