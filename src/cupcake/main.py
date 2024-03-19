@@ -406,9 +406,9 @@ class CMake:
         run([self.CMAKE, *args], cwd=build_dir)
 
 TEST_TEMPLATE_ = """
-'{{ cmake }}' --build '{{ cmakeDir }}'
-{% if multiConfig %} --config {{ flavor }} {% endif %}
---target {% if multiConfig %} RUN_TESTS {% else %} test {% endif %}
+'{{ ctest }}' --test-dir '{{ cmakeDir }}'
+{% if multiConfig %} --build-config {{ flavor }} {% endif %}
+{% if regex %} --tests-regex {{ regex }} {% endif %}
 """
 
 # We want commands to call dependencies,
@@ -452,6 +452,10 @@ class Cupcake:
     @cascade.value()
     def CMAKE(self, config_):
         return confee.resolve(None, config_.CMAKE, 'cmake')
+
+    @cascade.value()
+    def CTEST(self, config_):
+        return confee.resolve(None, config_.CTEST, 'ctest')
 
     @cascade.value()
     @cascade.option(
@@ -826,15 +830,17 @@ class Cupcake:
         ])
 
     @cascade.command()
-    def test(self, config_, CMAKE, log_dir_, cmake_dir_, flavor_, cmake):
+    @cascade.argument('regex', required=False)
+    def test(self, config_, CTEST, log_dir_, cmake_dir_, flavor_, cmake, regex):
         """Test the selected flavor."""
         template = confee.resolve(None, config_.scripts.test, TEST_TEMPLATE_)
         template = jinja2.Template(template)
         context = {
-            'cmake': CMAKE,
+            'ctest': CTEST,
             'cmakeDir': cmake_dir_,
             'multiConfig': cmake.multiConfig(),
             'flavor': FLAVORS[flavor_],
+            'regex': regex,
         }
         command = shlex.split(template.render(**context))
         env = os.environ.copy()
