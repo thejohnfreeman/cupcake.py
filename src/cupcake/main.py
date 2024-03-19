@@ -1089,20 +1089,20 @@ class Cupcake:
 
     @cascade.command()
     def list(self, source_dir_):
-        """List targets."""
+        """List targets and their links."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        prefixes = {
-            'libraries': 'lib',
-            'executables': '',
-            'tests': 'test.'
-        }
-        targets = [
-            f'{prefixes[kind]}{name()}'
-            for kind in ['libraries', 'executables', 'tests']
-            for name in metadata[kind][:].name
+        kinds = [
+            ('libraries', 'lib'),
+            ('executables', ''),
+            ('tests', 'test.'),
         ]
-        for target in targets:
-            print(target)
+        for kind, prefix in kinds:
+            for item in metadata[kind][:]:
+                line = f'{prefix}{item.name()}'
+                links = item.links([])
+                if links:
+                    line += ' -> ' + ', '.join(links)
+                print(line)
 
     @cascade.command('add:lib')
     @cascade.option('--header-only', is_flag=True, help='Whether to create a source file.')
