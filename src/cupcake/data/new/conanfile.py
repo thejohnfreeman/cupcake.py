@@ -1,7 +1,7 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake, cmake_layout
 
-class {{ NameTitle }}(ConanFile):
+class {{ name | pascal }}(ConanFile):
     name = '{{ name }}'
     version = '0.1.0'
     {% if github %}

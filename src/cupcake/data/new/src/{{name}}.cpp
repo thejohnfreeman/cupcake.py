@@ -6,7 +6,7 @@
 {% endif %}
 int main(int argc, const char** argv) {
 {% if with_library %}
-    {{ name_snake_lower }}::{{ name_snake_lower }}();
+    {{ name | snake }}::{{ name | snake }}();
 {% endif %}
     return 0;
 }

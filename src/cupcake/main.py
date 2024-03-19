@@ -151,6 +151,12 @@ def parse_options(options: t.Iterable[str], default):
         adds[name] = value
     return adds
 
+def snake(string):
+    return string.replace('-', '_')
+
+def pascal(string):
+    return string.title().replace('-', '')
+
 PATTERN_GITHUB_PATH = r'/([^/]+)/([^/]+)(?:/tree/[^/]+(.+))?'
 
 @contextmanager
@@ -832,6 +838,18 @@ class Cupcake:
         with (log_dir_ / 'test').open('wb') as stream:
             tee(command, stream=stream, env=env)
 
+    def jenv_(self, directory):
+        loader = jinja2.PackageLoader('cupcake', directory)
+        jenv = jinja2.Environment(
+            loader=loader,
+            keep_trailing_newline=True,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+        jenv.filters['pascal'] = pascal
+        jenv.filters['snake'] = snake
+        return jenv
+
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
     @cascade.option(
@@ -888,13 +906,7 @@ class Cupcake:
         force,
     ):
         """Create a new project."""
-        loader = jinja2.PackageLoader('cupcake', 'data/new')
-        jenv = jinja2.Environment(
-            loader=loader,
-            keep_trailing_newline=True,
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
+        jenv = self.jenv_('data/new')
 
         if author is None:
             username = subprocess.run(
@@ -969,16 +981,9 @@ class Cupcake:
         if not re.match(r'[a-z][a-z0-9-]*', name):
             raise SystemExit(f'name must contain only lowercase letters, numbers, and dashes: {name}')
 
-        NameTitle = name.title().replace('-', '')
-        name_snake_lower = name.replace('-', '_')
-        NAME_SNAKE_UPPER = name_snake_lower.upper()
-
         context = {
             **context,
             'name': name,
-            'NameTitle': NameTitle,
-            'name_snake_lower': name_snake_lower,
-            'NAME_SNAKE_UPPER': NAME_SNAKE_UPPER,
         }
 
         for tname in tnames:
@@ -1100,13 +1105,7 @@ class Cupcake:
     @cascade.argument('name', required=True)
     def add_lib(self, source_dir_, header_only, name):
         """Add a library."""
-        loader = jinja2.PackageLoader('cupcake', 'data/new')
-        jenv = jinja2.Environment(
-            loader=loader,
-            keep_trailing_newline=True,
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
+        jenv = self.jenv_('data/new')
 
         tnames = ['include/{{name}}/{{name}}.hpp']
         if not header_only:
@@ -1191,13 +1190,7 @@ class Cupcake:
     @cascade.argument('name', required=True)
     def add_exe(self, source_dir_, name):
         """Add an executable."""
-        loader = jinja2.PackageLoader('cupcake', 'data/new')
-        jenv = jinja2.Environment(
-            loader=loader,
-            keep_trailing_newline=True,
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
+        jenv = self.jenv_('data/new')
 
         tnames = ['src/{{name}}.cpp']
         self.generate_(jenv, source_dir_, tnames, name, context={})
@@ -1238,13 +1231,7 @@ class Cupcake:
     @cascade.argument('name', required=True)
     def add_test(self, source_dir_, name):
         """Add a test."""
-        loader = jinja2.PackageLoader('cupcake', 'data/new')
-        jenv = jinja2.Environment(
-            loader=loader,
-            keep_trailing_newline=True,
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
+        jenv = self.jenv_('data/new')
 
         tnames = ['tests/{{name}}.cpp']
         self.generate_(jenv, source_dir_, tnames, name, context={})

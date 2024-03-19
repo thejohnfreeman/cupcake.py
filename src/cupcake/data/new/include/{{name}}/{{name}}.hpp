@@ -1,11 +1,11 @@
-#ifndef {{ NAME_SNAKE_UPPER }}_{{ NAME_SNAKE_UPPER }}_HPP
-#define {{ NAME_SNAKE_UPPER }}_{{ NAME_SNAKE_UPPER }}_HPP
+#ifndef {{ name | snake | upper }}_{{ name | snake | upper }}_HPP
+#define {{ name | snake | upper }}_{{ name | snake | upper }}_HPP
 
 #include <{{ name }}/export.hpp>
 
-namespace {{ name_snake_lower }} {
+namespace {{ name | snake }} {
 
-{{ NAME_SNAKE_UPPER }}_EXPORT void {{ name_snake_lower }}();
+{{ name | snake | upper }}_EXPORT void {{ name | snake }}();
 
 }
 

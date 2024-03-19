@@ -1,8 +1,8 @@
 #include <{{ name }}/{{ name }}.hpp>
 
-namespace {{ name_snake_lower }} {
+namespace {{ name | snake }} {
 
-void {{ name_snake_lower }}() {
+void {{ name | snake }}() {
 }
 
 }
