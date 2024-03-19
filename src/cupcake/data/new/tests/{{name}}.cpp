@@ -3,8 +3,8 @@
 
 {% if with_library %}
 #include <{{ name }}/{{ name }}.hpp>
-{% endif %}
 
+{% endif %}
 TEST_CASE("test case please ignore") {
     CHECK(true);
 }
