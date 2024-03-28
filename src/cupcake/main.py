@@ -656,6 +656,11 @@ class Cupcake:
         metavar='NAME',
         multiple=True,
     )
+    @cascade.option(
+        '--keep',
+        help='Do not delete the CMake directory.',
+        is_flag=True,
+    )
     def cmake(
         self,
         source_dir_,
@@ -672,6 +677,7 @@ class Cupcake:
         prefixes,
         variables,
         unvariables,
+        keep,
     ):
         """Configure CMake for at least the selected flavor."""
         # Variables are a little unique.
@@ -742,9 +748,9 @@ class Cupcake:
         if not multiConfig:
             cmake_dir /= flavor_
 
-        shutil.rmtree(cmake_dir, ignore_errors=True)
-        # This directory should not yet exist, but its parent might.
-        cmake_dir.mkdir(parents=True)
+        if not keep:
+            shutil.rmtree(cmake_dir, ignore_errors=True)
+        cmake_dir.mkdir(parents=True, exist_ok=True)
         cmake_args = {}
         cmake_args['BUILD_SHARED_LIBS'] = 'ON' if shared else 'OFF'
         cmake_args['CMAKE_INSTALL_PREFIX'] = prefix_
