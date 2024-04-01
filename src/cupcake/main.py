@@ -789,17 +789,19 @@ class Cupcake:
 
     @cascade.command()
     @cascade.option(
-        '--jobs', '-j', help='Maximum number of simultaneous jobs.'
+        '--jobs', '-j', type=int, help='Maximum number of simultaneous jobs.',
     )
     @cascade.argument('target', required=False)
-    def build(self, CMAKE, build_dir_, log_dir_, cmake_dir_, flavor_, cmake, jobs, target):
+    def build(self, config_, CMAKE, build_dir_, log_dir_, cmake_dir_, flavor_, cmake, jobs, target):
         """Build the selected flavor."""
+        jobs = confee.resolve(jobs, config_.jobs, None)
+        confee.write(config_)
         command = [CMAKE, '--build', cmake_dir_, '--verbose']
         if cmake.multiConfig():
             command.extend(['--config', FLAVORS[flavor_]])
         command.append('--parallel')
         if jobs is not None:
-            command.append(jobs)
+            command.append(str(jobs))
         if target is not None:
             command.extend(['--target', target])
         with (log_dir_ / 'build').open('wb') as stream:
