@@ -15,6 +15,7 @@ cupcake_project()
 {% if special %}
 cupcake_find_packages(main)
 cupcake_link_libraries(${PROJECT_NAME}.imports.main INTERFACE main)
+cupcake_find_packages(tool PRIVATE)
 {% endif %}
 
 {% if with_library %}

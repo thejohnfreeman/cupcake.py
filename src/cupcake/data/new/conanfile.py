@@ -1,7 +1,7 @@
-from conan import ConanFile
+import conan
 from conan.tools.cmake import CMake, cmake_layout
 
-class {{ name | pascal }}(ConanFile):
+class {{ name | pascal }}(conan.ConanFile):
     name = '{{ name }}'
     version = '0.1.0'
     {% if github %}
@@ -54,8 +54,15 @@ class {{ name | pascal }}(ConanFile):
         path = pathlib.Path(self.recipe_folder) / 'cupcake.json'
         with path.open('r') as file:
             metadata = json.load(file)
+        methods = {
+            'tool': 'tool_requires',
+            'test': 'test_requires',
+        } if conan.conan_version.major.value == 2 else {}
         for requirement in metadata.get('imports', []):
-            self.requires(requirement['reference'])
+            groups = requirement.get('groups', [])
+            group = groups[0] if len(groups) == 1 else 'main'
+            method = methods.get(group, 'requires')
+            getattr(self, method)(requirement['reference'])
 
     {% endif %}
     def config_options(self):
