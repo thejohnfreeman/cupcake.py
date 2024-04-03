@@ -192,6 +192,13 @@ def update_requirement(metadata, name, f):
     requirements.sort(key=lambda item: item['name'])
     metadata.imports = requirements
 
+def expand(reference):
+    if reference.startswith('lib'):
+        return ('libraries', reference[len('lib'):])
+    if reference.startswith('test.'):
+        return ('tests', reference[len('test.'):])
+    return ('executables', reference)
+
 class SearchResult:
     """Representation for a Conan package search result."""
 
@@ -1117,6 +1124,55 @@ class Cupcake:
                 if links:
                     line += ' -> ' + ', '.join(links)
                 print(line)
+
+    @cascade.command()
+    @cascade.argument('downstream', required=True)
+    @cascade.argument('upstream', required=True)
+    def link(self, source_dir_, downstream, upstream):
+        """Link downstream artifact to upstream library."""
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        pname = metadata.project.name()
+
+        def unprefix(reference):
+            for prefix in (pname + '.', '${PROJECT_NAME}.'):
+                if reference.startswith(prefix):
+                    return reference[len(prefix):]
+            return reference
+
+        downstream = unprefix(downstream)
+        upstream = unprefix(upstream)
+
+        def find(reference):
+            kind, name = expand(reference)
+            items = confee.filter(metadata[kind][:], subject['name'] == name)
+            items = list(items)
+            if len(items) > 1:
+                raise SystemExit(f'ambiguous reference: {reference}')
+            if len(items) < 1:
+                raise SystemExit(f'unknown reference: {reference}')
+            return items[0]
+
+        dproxy = find(downstream)
+
+        if upstream.startswith('lib'):
+            uproxy = find(upstream)
+            if uproxy == dproxy:
+                raise SystemExit(f'cannot link to self')
+        elif not re.match(f'^imports.\\w+$', upstream):
+            raise SystemExit(f'upstream is not a library: {upstream}')
+
+        link1 = '${PROJECT_NAME}.' + upstream
+        link2 = pname + '.' + upstream
+
+        existing = confee.filter(dproxy.links[:], (
+            (subject == link1) | (subject == link2) |
+            (subject['target'] == link1) | (subject['target'] == link2)
+        ))
+        existing = list(existing)
+        if len(existing) > 0:
+            raise SystemExit('already linked')
+        confee.add(dproxy.links, link1)
+        confee.write(metadata)
 
     @cascade.command('add:lib')
     @cascade.option('--header-only', is_flag=True, help='Whether to create a source file.')
