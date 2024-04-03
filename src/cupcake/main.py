@@ -1175,6 +1175,48 @@ class Cupcake:
 
         confee.write(metadata)
 
+    @cascade.command()
+    @cascade.argument('downstream', required=True)
+    @cascade.argument('upstreams', required=True, nargs=-1)
+    def unlink(self, source_dir_, downstream, upstreams):
+        """Unlink downstream artifact from upstream libraries."""
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        pname = metadata.project.name()
+
+        def unprefix(reference):
+            for prefix in (pname + '.', '${PROJECT_NAME}.'):
+                if reference.startswith(prefix):
+                    return reference[len(prefix):]
+            return reference
+
+        def find(reference):
+            kind, name = expand(reference)
+            items = confee.filter(metadata[kind][:], subject['name'] == name)
+            items = list(items)
+            if len(items) > 1:
+                raise SystemExit(f'ambiguous reference: {reference}')
+            if len(items) < 1:
+                raise SystemExit(f'unknown reference: {reference}')
+            return items[0]
+
+        downstream = unprefix(downstream)
+        dproxy = find(downstream)
+
+        for upstream in upstreams:
+            upstream = unprefix(upstream)
+            # We don't need to check that upstream is a library.
+            # All we care is whether it appears in the links.
+
+            link1 = '${PROJECT_NAME}.' + upstream
+            link2 = pname + '.' + upstream
+
+            confee.remove_if(dproxy.links[:], (
+                (subject == link1) | (subject == link2) |
+                (subject['target'] == link1) | (subject['target'] == link2)
+            ))
+
+        confee.write(metadata)
+
     @cascade.command('add:lib')
     @cascade.option('--header-only', is_flag=True, help='Whether to create a source file.')
     @cascade.argument('name', required=True)
