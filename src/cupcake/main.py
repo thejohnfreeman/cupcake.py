@@ -1127,9 +1127,9 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('downstream', required=True)
-    @cascade.argument('upstream', required=True)
-    def link(self, source_dir_, downstream, upstream):
-        """Link downstream artifact to upstream library."""
+    @cascade.argument('upstreams', required=True, nargs=-1)
+    def link(self, source_dir_, downstream, upstreams):
+        """Link downstream artifact to upstream libraries."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
         pname = metadata.project.name()
 
@@ -1138,9 +1138,6 @@ class Cupcake:
                 if reference.startswith(prefix):
                     return reference[len(prefix):]
             return reference
-
-        downstream = unprefix(downstream)
-        upstream = unprefix(upstream)
 
         def find(reference):
             kind, name = expand(reference)
@@ -1152,26 +1149,30 @@ class Cupcake:
                 raise SystemExit(f'unknown reference: {reference}')
             return items[0]
 
+        downstream = unprefix(downstream)
         dproxy = find(downstream)
 
-        if upstream.startswith('lib'):
-            uproxy = find(upstream)
-            if uproxy == dproxy:
-                raise SystemExit(f'cannot link to self')
-        elif not re.match(f'^imports.\\w+$', upstream):
-            raise SystemExit(f'upstream is not a library: {upstream}')
+        for upstream in upstreams:
+            upstream = unprefix(upstream)
+            if upstream.startswith('lib'):
+                uproxy = find(upstream)
+                if uproxy == dproxy:
+                    raise SystemExit(f'cannot link to self')
+            elif not re.match(f'^imports.\\w+$', upstream):
+                raise SystemExit(f'upstream is not a library: {upstream}')
 
-        link1 = '${PROJECT_NAME}.' + upstream
-        link2 = pname + '.' + upstream
+            link1 = '${PROJECT_NAME}.' + upstream
+            link2 = pname + '.' + upstream
 
-        existing = confee.filter(dproxy.links[:], (
-            (subject == link1) | (subject == link2) |
-            (subject['target'] == link1) | (subject['target'] == link2)
-        ))
-        existing = list(existing)
-        if len(existing) > 0:
-            raise SystemExit('already linked')
-        confee.add(dproxy.links, link1)
+            existing = confee.filter(dproxy.links[:], (
+                (subject == link1) | (subject == link2) |
+                (subject['target'] == link1) | (subject['target'] == link2)
+            ))
+            existing = list(existing)
+            if len(existing) > 0:
+                raise SystemExit('already linked')
+            confee.add(dproxy.links, link1)
+
         confee.write(metadata)
 
     @cascade.command('add:lib')
