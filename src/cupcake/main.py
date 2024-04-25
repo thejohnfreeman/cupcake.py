@@ -61,8 +61,16 @@ def max_by(compare):
 
 # Map from friendly Cupcake name to Conan/CMake name.
 FLAVORS = {
-    'release': 'Release',
+    'd': 'Debug',
     'debug': 'Debug',
+    'minsizerel': 'MinSizeRel',
+    'msr': 'MinSizeRel',
+    'r': 'Release',
+    'rd': 'RelWithDebInfo',
+    'release': 'Release',
+    'relwithdebinfo': 'RelWithDebInfo',
+    'rwdi': 'RelWithDebInfo',
+    'size': 'MinSizeRel',
 }
 
 PATTERN_INDEX_FILENAME = re.compile(r'^index-.*\.json$')
