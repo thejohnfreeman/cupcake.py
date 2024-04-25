@@ -759,6 +759,7 @@ class Cupcake:
             shutil.rmtree(cmake_dir, ignore_errors=True)
         cmake_dir.mkdir(parents=True, exist_ok=True)
         cmake_args = {}
+        cmake_args['CMAKE_POLICY_DEFAULT_CMP0091'] = 'NEW'
         cmake_args['BUILD_SHARED_LIBS'] = 'ON' if shared else 'OFF'
         cmake_args['CMAKE_INSTALL_PREFIX'] = prefix_
         if conan is not None:
