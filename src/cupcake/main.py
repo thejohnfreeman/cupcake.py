@@ -359,6 +359,9 @@ def _parse_search_v2(results):
     ]
 
 
+_SINGLES = ('Unix Makefiles', 'Ninja')
+_MULTIS = ('Ninja Multi-Config', 'Xcode')
+
 class CMake:
     def __init__(self, CMAKE):
         self.CMAKE = CMAKE
@@ -370,6 +373,13 @@ class CMake:
         in a temporary directory
         to find out whether the generator is multi-config.
         """
+        if type(generator) == str:
+            if generator in _SINGLES:
+                return False
+            if generator in _MULTIS:
+                return True
+            if generator.startswith('Visual Studio '):
+                return True
         with tempfile.TemporaryDirectory() as cmake_dir:
             cmake_dir = pathlib.Path(cmake_dir)
             api_dir = cmake_dir / '.cmake/api/v1'
@@ -758,6 +768,9 @@ class Cupcake:
         if not keep:
             shutil.rmtree(cmake_dir, ignore_errors=True)
         cmake_dir.mkdir(parents=True, exist_ok=True)
+        # CMake complains if any of these variables are unused,
+        # but it is impossible to predict which will be unused.
+        # Don't sweat it.
         cmake_args = {}
         cmake_args['CMAKE_POLICY_DEFAULT_CMP0091'] = 'NEW'
         cmake_args['BUILD_SHARED_LIBS'] = 'ON' if shared else 'OFF'
