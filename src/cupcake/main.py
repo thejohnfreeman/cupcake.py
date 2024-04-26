@@ -411,24 +411,18 @@ class CMake:
             multiConfig = index['cmake']['generator']['multiConfig']
             return multiConfig
 
-    def configure(self, build_dir, source_dir, generator, variables={}):
+    def configure(self, build_dir, source_dir, generator, variables={}, env={}):
         """
         source_dir : path-like
             If relative, must be relative to build_dir.
         """
         variables = dict(variables)
         args = [f'-D{name}={value}' for name, value in variables.items()]
-        args = [*args, source_dir]
         if generator is not None:
             args = ['-G', generator, *args]
-            # CMake will warn when this variable is unused by the generator.
-            # https://cmake.org/cmake/help/latest/variable/CMAKE_EXPORT_COMPILE_COMMANDS.html
-            # TODO: Let `cupcake_project()` set a different default for this
-            # variable, and Cupcake can just link it in the build directory if
-            # it is found after the `cmake` step.
-            if re.search('Makefiles|Ninja', generator):
-                variables['CMAKE_EXPORT_COMPILE_COMMANDS'] = 'ON'
-        run([self.CMAKE, *args], cwd=build_dir)
+        args = [*args, source_dir]
+        env = { **os.environ, **env }
+        run([self.CMAKE, *args], cwd=build_dir, env=env)
 
 TEST_TEMPLATE_ = """
 '{{ ctest }}' --test-dir '{{ cmakeDir }}'
@@ -780,6 +774,7 @@ class Cupcake:
         # but it is impossible to predict which will be unused.
         # Don't sweat it.
         cmake_args = {}
+        cmake_args['CMAKE_EXPORT_COMPILE_COMMANDS'] = 'ON'
         cmake_args['CMAKE_POLICY_DEFAULT_CMP0091'] = 'NEW'
         cmake_args['BUILD_SHARED_LIBS'] = 'ON' if shared else 'OFF'
         cmake_args['CMAKE_INSTALL_PREFIX'] = prefix_
@@ -798,7 +793,8 @@ class Cupcake:
         for name, value in cvars.items():
             cmake_args[name] = value
         CMake(CMAKE).configure(
-            cmake_dir, source_dir_, generator, cmake_args
+            cmake_dir, source_dir_, generator, cmake_args,
+            env={'CMAKE_OUTPUT_DIR': build_dir_ / 'output'},
         )
 
         state_.cmake.id = id
