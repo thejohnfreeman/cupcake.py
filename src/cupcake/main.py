@@ -1236,9 +1236,10 @@ class Cupcake:
         confee.write(metadata)
 
     @cascade.command('add:lib')
+    @cascade.option('--public/--private', is_flag=True, default=True, help='Whether to export the library.')
     @cascade.option('--header-only', is_flag=True, help='Whether to create a source file.')
     @cascade.argument('name', required=True)
-    def add_lib(self, source_dir_, header_only, name):
+    def add_lib(self, source_dir_, public, header_only, name):
         """Add a library."""
         jenv = self.jenv_('data/new')
 
@@ -1248,10 +1249,10 @@ class Cupcake:
         self.generate_(jenv, source_dir_, tnames, name, context={})
 
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        confee.add(
-            metadata.libraries,
-            {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
-        )
+        library = {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+        if not public:
+            library['private'] = True
+        confee.add(metadata.libraries, library)
         confee.write(metadata)
 
     @cascade.command('remove:lib')
@@ -1322,8 +1323,9 @@ class Cupcake:
         confee.write(metadata)
 
     @cascade.command('add:exe')
+    @cascade.option('--public/--private', is_flag=True, default=True, help='Whether to export the executable.')
     @cascade.argument('name', required=True)
-    def add_exe(self, source_dir_, name):
+    def add_exe(self, source_dir_, public, name):
         """Add an executable."""
         jenv = self.jenv_('data/new')
 
@@ -1331,10 +1333,10 @@ class Cupcake:
         self.generate_(jenv, source_dir_, tnames, name, context={})
 
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        confee.add(
-            metadata.executables,
-            {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] },
-        )
+        executable = { 'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+        if not public:
+            executable['private'] = True
+        confee.add(metadata.executables, executable)
         confee.write(metadata)
 
     @cascade.command('remove:exe')
