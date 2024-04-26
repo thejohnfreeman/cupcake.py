@@ -22,7 +22,7 @@ class {{ name | pascal }}(conan.ConanFile):
     default_options = {'shared': False, 'fPIC': True}
 
     requires = [
-        'cupcake/{{ version }}@github/thejohnfreeman',
+        'cupcake.cmake/{{ version }}@github/thejohnfreeman',
         {% if with_tests and not special %}
         'doctest/2.4.8',
         {% endif %}

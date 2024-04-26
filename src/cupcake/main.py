@@ -900,7 +900,7 @@ class Cupcake:
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
     @cascade.option(
-        '--version', help='Version of requirement cupcake@github/thejohnfreeman.', default='0.7.0',
+        '--version', help='Version of requirement cupcake.cmake@github/thejohnfreeman.', default='1.0.0',
     )
     @cascade.option(
         '--special/--general', help='Whether to enable special commands.', default=True,

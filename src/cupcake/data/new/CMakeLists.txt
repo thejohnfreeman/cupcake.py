@@ -8,7 +8,7 @@ project({{ name }}
   LANGUAGES CXX
 )
 
-find_package(cupcake REQUIRED)
+find_package(cupcake.cmake REQUIRED)
 
 cupcake_project()
 
