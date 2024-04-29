@@ -1,7 +1,7 @@
-import conan
+from conan import ConanFile, conan_version
 from conan.tools.cmake import CMake, cmake_layout
 
-class {{ name | pascal }}(conan.ConanFile):
+class {{ name | pascal }}(ConanFile):
     name = '{{ name }}'
     version = '0.1.0'
     {% if github %}
@@ -22,6 +22,7 @@ class {{ name | pascal }}(conan.ConanFile):
     default_options = {'shared': False, 'fPIC': True}
 
     requires = [
+        # Available at https://conan.jfreeman.dev
         'cupcake.cmake/{{ version }}@github/thejohnfreeman',
         {% if with_tests and not special %}
         'doctest/2.4.8',
@@ -57,7 +58,7 @@ class {{ name | pascal }}(conan.ConanFile):
         methods = {
             'tool': 'tool_requires',
             'test': 'test_requires',
-        } if conan.conan_version.major.value == 2 else {}
+        } if conan_version.major.value == 2 else {}
         for requirement in metadata.get('imports', []):
             groups = requirement.get('groups', [])
             group = groups[0] if len(groups) == 1 else 'main'
