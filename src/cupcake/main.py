@@ -8,6 +8,7 @@ import io
 import itertools
 import jinja2
 import json
+import locale
 import operator
 import os
 import pathlib
@@ -114,6 +115,9 @@ def print_call():
     return decorate
 
 def compare_version(a, b):
+    """
+    Returns <0, 0, or >0.
+    """
     # Not all Conan packages use Semantic Versioning.
     # To be as flexible as possible,
     # we treat version strings as non-digit-separated sequences of numbers.
@@ -210,9 +214,7 @@ def expand(reference):
 class SearchResult:
     """Representation for a Conan package search result."""
 
-    key = functools.cmp_to_key(
-        lambda a, b: compare_version(a.version, b.version)
-    )
+    key = functools.cmp_to_key(lambda a, b: a.__cmp__(b))
 
     def __init__(self, remote, reference):
         self.remote = remote
@@ -220,6 +222,13 @@ class SearchResult:
         self.package = match[1]
         self.version = match[2]
         self.remainder = match[3]
+
+    def __cmp__(self, rhs):
+        # Note reversed order for package name.
+        diff = locale.strcoll(rhs.package, self.package)
+        if diff != 0:
+            return diff
+        return compare_version(self.version, rhs.version)
 
     def __str__(self):
         s = f'{self.package}/{self.version}@'
