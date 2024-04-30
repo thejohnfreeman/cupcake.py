@@ -850,12 +850,13 @@ class Cupcake:
         """Execute an executable target."""
         target = 'execute'
         if executable is not None:
-            target += '-' + executable
+            target += '.' + executable
         command = [CMAKE, '--build', cmake_dir_, '--target', target]
         if cmake.multiConfig():
             command.extend(['--config', FLAVORS[flavor_]])
         env = os.environ.copy()
-        env['CUPCAKE_EXE_ARGUMENTS'] = ' '.join(map(shlex.quote, arguments))
+        escape = lambda arg: arg.replace(';', '\\;')
+        env['CUPCAKE_EXE_ARGUMENTS'] = ';'.join(map(escape, arguments))
         run(command, env=env)
 
     @cascade.command()
