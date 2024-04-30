@@ -430,7 +430,7 @@ class CMake:
         if generator is not None:
             args = ['-G', generator, *args]
         args = [*args, source_dir]
-        env = { **os.environ, **env }
+        env = os.environ | env
         run([self.CMAKE, *args], cwd=build_dir, env=env)
 
 TEST_TEMPLATE_ = """
@@ -803,7 +803,7 @@ class Cupcake:
             cmake_args[name] = value
         CMake(CMAKE).configure(
             cmake_dir, source_dir_, generator, cmake_args,
-            env={'CMAKE_OUTPUT_DIR': build_dir_ / 'output'},
+            env={'CMAKE_OUTPUT_DIR': str(build_dir_ / 'output')},
         )
 
         state_.cmake.id = id
