@@ -776,8 +776,9 @@ class Cupcake:
         if not multiConfig:
             cmake_dir /= flavor_
 
-        if not keep:
-            shutil.rmtree(cmake_dir, ignore_errors=True)
+        # We must remove at least the cache file.
+        removee = (cmake_dir / 'CMakeCache.txt') if keep else cmake_dir
+        shutil.rmtree(removee, ignore_errors=True)
         cmake_dir.mkdir(parents=True, exist_ok=True)
         # CMake complains if any of these variables are unused,
         # but it is impossible to predict which will be unused.
