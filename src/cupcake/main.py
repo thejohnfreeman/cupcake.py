@@ -434,7 +434,7 @@ class CMake:
         run([self.CMAKE, *args], cwd=build_dir, env=env)
 
 TEST_TEMPLATE_ = """
-'{{ ctest }}' --test-dir '{{ cmakeDir }}'
+'{{ ctest }}' --verbose --test-dir '{{ cmakeDir }}'
 {% if multiConfig %} --build-config {{ flavor }} {% endif %}
 {% if regex %} --tests-regex {{ regex }} {% endif %}
 """
