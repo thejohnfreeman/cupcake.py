@@ -605,16 +605,15 @@ class Cupcake:
             m.update(value.encode())
         id = m.hexdigest()
         old_flavors = state_.conan.flavors([])
-        new_flavors = list({*config_.flavors([]), flavor_})
-        diff_flavors = [f for f in new_flavors if f not in old_flavors]
         conan_dir = build_dir_ / 'conan'
-        if state_.conan:
-            if state_.conan.id() == id:
-                if not diff_flavors:
-                    return state_.conan
-            else:
-                shutil.rmtree(conan_dir, ignore_errors=True)
-                diff_flavors = new_flavors
+        if state_.conan.id(None) == id:
+            if flavor_ in old_flavors:
+                return state_.conan
+        else:
+            shutil.rmtree(conan_dir, ignore_errors=True)
+            old_flavors = []
+        new_flavors = list({*config_.flavors([]), flavor_})
+        added_flavors = [f for f in new_flavors if f not in old_flavors]
         conan_dir.mkdir(parents=True, exist_ok=True)
         command = [
             CONAN.command, 'install', source_dir_, '--build', 'missing',
@@ -623,10 +622,10 @@ class Cupcake:
         ]
         for name, value in copts.items():
             command.extend(['--options', f'{name}={value}'])
-        for flavor in diff_flavors:
+        for flavor in added_flavors:
             with (log_dir_ / 'conan').open('wb') as stream:
                 tee(
-                    [*command, '--settings', f'build_type={FLAVORS[flavor_]}'],
+                    [*command, '--settings', f'build_type={FLAVORS[flavor]}'],
                     stream=stream,
                     cwd=conan_dir,
                 )
