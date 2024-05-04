@@ -480,7 +480,8 @@ class CMake:
         run([self.CMAKE, *args], cwd=build_dir, env=env)
 
 TEST_TEMPLATE_ = """
-'{{ ctest }}' --verbose --test-dir '{{ cmakeDir }}'
+'{{ ctest }}' --test-dir '{{ cmakeDir }}'
+{% if verbosity > 0 %} --verbose {% endif %}
 {% if jobs > 1 %} --parallel {{ jobs }} {% endif %}
 {% if multiConfig %} --build-config {{ flavor }} {% endif %}
 {% if regex %} --tests-regex {{ regex }} {% endif %}
@@ -877,6 +878,13 @@ class Cupcake:
     def jobs_(self, config_, jobs):
         return confee.resolve(jobs, config_.jobs, _DEFAULT_JOBS)
 
+    @cascade.value()
+    @cascade.option('--verbose', '-v', count=True, help='Increment verbosity.')
+    @cascade.option('--quiet', '-q', count=True, help='Decrement verbosity.')
+    def verbosity_(self, config_, verbose, quiet):
+        verbosity = min(max(verbose - quiet, 0), 3)
+        return confee.resolve(verbosity, config_.verbosity, 0)
+
     @cascade.command()
     @cascade.argument('target', required=False)
     def build(
@@ -888,12 +896,15 @@ class Cupcake:
         cmake_dir_,
         flavor_,
         jobs_,
+        verbosity_,
         cmake,
         target,
     ):
         """Build the selected flavor."""
         confee.write(config_)
-        command = [CMAKE, '--build', cmake_dir_, '--verbose']
+        command = [CMAKE, '--build', cmake_dir_]
+        if verbosity_ > 0:
+            command.append('--verbose')
         if jobs_ > 1:
             command.extend(['--parallel', str(jobs_)])
         if cmake.multiConfig():
@@ -936,7 +947,18 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('regex', required=False)
-    def test(self, config_, CTEST, log_dir_, cmake_dir_, flavor_, jobs_, cmake, regex):
+    def test(
+        self,
+        config_,
+        CTEST,
+        log_dir_,
+        cmake_dir_,
+        flavor_,
+        jobs_,
+        verbosity_,
+        cmake,
+        regex,
+    ):
         """Test the selected flavor."""
         confee.write(config_)
         template = confee.resolve(None, config_.scripts.test, TEST_TEMPLATE_)
@@ -948,6 +970,7 @@ class Cupcake:
             'flavor': FLAVORS[flavor_],
             'regex': regex,
             'jobs': jobs_,
+            'verbosity': verbosity_,
         }
         command = shlex.split(template.render(**context))
         env = os.environ.copy()
