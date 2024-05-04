@@ -25,6 +25,49 @@ import urllib.parse
 from cupcake import cascade, confee, transformations
 from cupcake.expression import subject, contains
 
+thresholds = [
+    (60 * 60 * 24, 'day'),
+    (60 * 60, 'hour'),
+    (60, 'minute'),
+    (1, 'second'),
+]
+
+fractions = [
+    'seconds',
+    'milliseconds',
+    'microseconds',
+    'nanoseconds',
+]
+
+def hrd(d: float) -> str:
+    """
+    Convert a machine-readable duration into a human-readable one.
+
+    Given a duration calculated by subtracting two results of a time method,
+    e.g. `time.perf_counter()`, return a friendly string like "1.23 seconds".
+    """
+    i = 0
+    while i < 3 and thresholds[i][0] > d:
+        i += 1
+    # If we are not dipping into fractional seconds, then use this formula.
+    if i < 3:
+        (d1, u1) = thresholds[i]
+        q1, r1 = divmod(d, d1)
+        if q1 > 1:
+            u1 += 's'
+        (d2, u2) =  thresholds[i+1]
+        q2, r2 = divmod(r1, d2)
+        if q2 > 1:
+            u2 += 's'
+        return f'{int(q1)} {u1}, {int(q2)} {u2}'
+    # We want 3 significant digits.
+    i = 0
+    while d < 1:
+        i += 1
+        d *= 1000
+    u = fractions[i]
+    return f'{d:.3} {u}'
+
 def run(command, *args, **kwargs):
     # TODO: Print this in a special color if writing to terminal.
     print(' '.join(shlex.quote(str(arg)) for arg in command), flush=True)
@@ -1504,5 +1547,4 @@ def main():
     finally:
         duration = time.time() - start # in seconds
         if duration > 1:
-            # TODO: Print human-friendly representation.
-            print(f'{duration:.3}s')
+            print(hrd(duration))
