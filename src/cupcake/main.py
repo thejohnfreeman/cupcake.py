@@ -12,6 +12,7 @@ import locale
 import operator
 import os
 import pathlib
+import psutil
 import re
 import shlex
 import shutil
@@ -24,6 +25,8 @@ import urllib.parse
 
 from cupcake import cascade, confee, transformations
 from cupcake.expression import subject, contains
+
+_DEFAULT_JOBS = psutil.cpu_count()
 
 thresholds = [
     (60 * 60 * 24, 'day'),
@@ -478,6 +481,7 @@ class CMake:
 
 TEST_TEMPLATE_ = """
 '{{ ctest }}' --verbose --test-dir '{{ cmakeDir }}'
+{% if jobs > 1 %} --parallel {{ jobs }} {% endif %}
 {% if multiConfig %} --build-config {{ flavor }} {% endif %}
 {% if regex %} --tests-regex {{ regex }} {% endif %}
 """
@@ -864,21 +868,36 @@ class Cupcake:
             build_dir_ /= flavor_
         return build_dir_
 
-    @cascade.command()
+    @cascade.value()
     @cascade.option(
-        '--jobs', '-j', type=int, help='Maximum number of simultaneous jobs.',
+        '--jobs', '--parallel', '-j',
+        is_flag=False, flag_value=_DEFAULT_JOBS, default=_DEFAULT_JOBS,
+        help='Maximum number of simultaneous jobs.',
     )
+    def jobs_(self, config_, jobs):
+        return confee.resolve(jobs, config_.jobs, _DEFAULT_JOBS)
+
+    @cascade.command()
     @cascade.argument('target', required=False)
-    def build(self, config_, CMAKE, build_dir_, log_dir_, cmake_dir_, flavor_, cmake, jobs, target):
+    def build(
+        self,
+        config_,
+        CMAKE,
+        build_dir_,
+        log_dir_,
+        cmake_dir_,
+        flavor_,
+        jobs_,
+        cmake,
+        target,
+    ):
         """Build the selected flavor."""
-        jobs = confee.resolve(jobs, config_.jobs, None)
         confee.write(config_)
         command = [CMAKE, '--build', cmake_dir_, '--verbose']
+        if jobs_ > 1:
+            command.extend(['--parallel', str(jobs_)])
         if cmake.multiConfig():
             command.extend(['--config', FLAVORS[flavor_]])
-        command.append('--parallel')
-        if jobs is not None:
-            command.append(str(jobs))
         if target is not None:
             command.extend(['--target', target])
         with (log_dir_ / 'build').open('wb') as stream:
@@ -917,8 +936,9 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('regex', required=False)
-    def test(self, config_, CTEST, log_dir_, cmake_dir_, flavor_, cmake, regex):
+    def test(self, config_, CTEST, log_dir_, cmake_dir_, flavor_, jobs_, cmake, regex):
         """Test the selected flavor."""
+        confee.write(config_)
         template = confee.resolve(None, config_.scripts.test, TEST_TEMPLATE_)
         template = jinja2.Template(template)
         context = {
@@ -927,6 +947,7 @@ class Cupcake:
             'multiConfig': cmake.multiConfig(),
             'flavor': FLAVORS[flavor_],
             'regex': regex,
+            'jobs': jobs_,
         }
         command = shlex.split(template.render(**context))
         env = os.environ.copy()
