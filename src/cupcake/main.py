@@ -1244,7 +1244,7 @@ class Cupcake:
     @cascade.argument('downstream', required=True)
     @cascade.argument('upstreams', required=True, nargs=-1)
     def link(self, source_dir_, downstream, upstreams):
-        """Link downstream artifact to upstream libraries."""
+        """Link a downstream artifact to upstream libraries."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
         pname = metadata.project.name()
 
@@ -1294,7 +1294,7 @@ class Cupcake:
     @cascade.argument('downstream', required=True)
     @cascade.argument('upstreams', required=True, nargs=-1)
     def unlink(self, source_dir_, downstream, upstreams):
-        """Unlink downstream artifact from upstream libraries."""
+        """Unlink a downstream artifact from upstream libraries."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
         pname = metadata.project.name()
 
@@ -1335,129 +1335,136 @@ class Cupcake:
     @cascade.command('add:lib')
     @cascade.option('--public/--private', is_flag=True, default=True, help='Whether to export the library.')
     @cascade.option('--header-only', is_flag=True, help='Whether to create a source file.')
-    @cascade.argument('name', required=True)
-    def add_lib(self, source_dir_, public, header_only, name):
-        """Add a library."""
+    @cascade.argument('names', required=True, nargs=-1)
+    def add_lib(self, source_dir_, public, header_only, names):
+        """Add one or more libraries."""
         jenv = self.jenv_('data/new')
 
         tnames = ['include/{{name}}/{{name}}.hpp']
         if not header_only:
             tnames.append('src/lib{{name}}.cpp')
-        self.generate_(jenv, source_dir_, tnames, name, context={})
-
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        library = {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
-        if not public:
-            library['private'] = True
-        confee.add(metadata.libraries, library)
+
+        for name in names:
+            self.generate_(jenv, source_dir_, tnames, name, context={})
+            library = {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+            if not public:
+                library['private'] = True
+            confee.add(metadata.libraries, library)
+
         confee.write(metadata)
 
     @cascade.command('remove:lib')
-    @cascade.argument('name', required=True)
-    def remove_lib(self, source_dir_, name):
-        """Remove a library."""
-        # Find the library in the metadata.
+    @cascade.argument('names', required=True, nargs=-1)
+    def remove_lib(self, source_dir_, names):
+        """Remove one or more libraries."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        libraries = confee.filter(metadata.libraries[:], subject['name'] == name)
-        libraries = list(libraries)
-        # Exit if it is missing or ambiguous.
-        if len(libraries) < 1:
-            raise SystemExit(f'unknown library name: {name}')
-        if len(libraries) > 1:
-            raise SystemExit(f'ambiguous library name: {name}')
-        [proxy] = libraries
-        library = proxy()
-        confee.delete(proxy)
 
-        # TODO: Remove its sources according to its section.
-        (source_dir_ / 'include' / f'{name}.hpp').unlink(missing_ok=True)
-        (source_dir_ / 'include' / f'{name}.h').unlink(missing_ok=True)
-        try:
-            shutil.rmtree(source_dir_ / 'include' / f'{name}')
-        except FileNotFoundError:
-            pass
+        for name in names:
+            # Find the library in the metadata.
+            libraries = confee.filter(metadata.libraries[:], subject['name'] == name)
+            libraries = list(libraries)
+            # Exit if it is missing or ambiguous.
+            if len(libraries) < 1:
+                raise SystemExit(f'unknown library name: {name}')
+            if len(libraries) > 1:
+                raise SystemExit(f'ambiguous library name: {name}')
+            [proxy] = libraries
+            library = proxy()
+            confee.delete(proxy)
 
-        (source_dir_ / 'src' / f'lib{name}.cpp').unlink(missing_ok=True)
-        (source_dir_ / 'src' / f'lib{name}.c').unlink(missing_ok=True)
-        try:
-            shutil.rmtree(source_dir_ / 'src' / f'lib{name}')
-        except FileNotFoundError:
-            pass
+            # TODO: Remove its sources according to its section.
+            (source_dir_ / 'include' / f'{name}.hpp').unlink(missing_ok=True)
+            (source_dir_ / 'include' / f'{name}.h').unlink(missing_ok=True)
+            try:
+                shutil.rmtree(source_dir_ / 'include' / f'{name}')
+            except FileNotFoundError:
+                pass
 
-        # Find links to the library in the metadata.
-        # It must be an internal library.
-        targets = [f'${{PROJECT_NAME}}.lib{name}']
-        if metadata.project.name:
-            targets.append(f'{metadata.project.name()}.lib{name}')
+            (source_dir_ / 'src' / f'lib{name}.cpp').unlink(missing_ok=True)
+            (source_dir_ / 'src' / f'lib{name}.c').unlink(missing_ok=True)
+            try:
+                shutil.rmtree(source_dir_ / 'src' / f'lib{name}')
+            except FileNotFoundError:
+                pass
 
-        for kind in {'libraries', 'executables', 'tests'}:
-            for target in metadata[kind][:]:
-                for link in target.links[:]:
-                    # Take target from shorthand or longhand.
-                    ltarget = link()
-                    if 'target' in ltarget:
-                        ltarget = ltarget['target']
-                    # Proceed only if target matches removed library.
-                    if ltarget not in targets:
-                        continue
-                    # Remove link from metadata.
-                    confee.delete(link)
-                    # Remove includes from source files.
-                    section = 'tests' if kind == 'tests' else 'exports'
-                    section = target.section(section)
-                    root = 'tests' if section == 'tests' else 'src'
-                    root = pathlib.Path(root)
-                    for suffix in ('h', 'hpp', 'c', 'cpp'):
-                        if (file := root / f'{name}.{suffix}').is_file():
-                            print(file)
-                            transformations.remove_includes(file, name)
-                    for parent, _, files in os.walk(root / name):
-                        parent = pathlib.Path(parent)
-                        for file in files:
-                            print(parent / file)
-                            transformations.remove_includes(parent / file, name)
+            # Find links to the library in the metadata.
+            # It must be an internal library.
+            targets = [f'${{PROJECT_NAME}}.lib{name}']
+            if metadata.project.name:
+                targets.append(f'{metadata.project.name()}.lib{name}')
+
+            for kind in {'libraries', 'executables', 'tests'}:
+                for target in metadata[kind][:]:
+                    for link in target.links[:]:
+                        # Take target from shorthand or longhand.
+                        ltarget = link()
+                        if 'target' in ltarget:
+                            ltarget = ltarget['target']
+                        # Proceed only if target matches removed library.
+                        if ltarget not in targets:
+                            continue
+                        # Remove link from metadata.
+                        confee.delete(link)
+                        # Remove includes from source files.
+                        section = 'tests' if kind == 'tests' else 'exports'
+                        section = target.section(section)
+                        root = 'tests' if section == 'tests' else 'src'
+                        root = pathlib.Path(root)
+                        for suffix in ('h', 'hpp', 'c', 'cpp'):
+                            if (file := root / f'{name}.{suffix}').is_file():
+                                print(file)
+                                transformations.remove_includes(file, name)
+                        for parent, _, files in os.walk(root / name):
+                            parent = pathlib.Path(parent)
+                            for file in files:
+                                print(parent / file)
+                                transformations.remove_includes(parent / file, name)
 
         confee.write(metadata)
 
     @cascade.command('add:exe')
     @cascade.option('--public/--private', is_flag=True, default=True, help='Whether to export the executable.')
-    @cascade.argument('name', required=True)
-    def add_exe(self, source_dir_, public, name):
-        """Add an executable."""
+    @cascade.argument('names', required=True, nargs=-1)
+    def add_exe(self, source_dir_, public, names):
+        """Add one or more executables."""
         jenv = self.jenv_('data/new')
-
         tnames = ['src/{{name}}.cpp']
-        self.generate_(jenv, source_dir_, tnames, name, context={})
-
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        executable = { 'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
-        if not public:
-            executable['private'] = True
-        confee.add(metadata.executables, executable)
+
+        for name in names:
+            self.generate_(jenv, source_dir_, tnames, name, context={})
+            executable = { 'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }
+            if not public:
+                executable['private'] = True
+            confee.add(metadata.executables, executable)
+
         confee.write(metadata)
 
     @cascade.command('remove:exe')
-    @cascade.argument('name', required=True)
-    def remove_exe(self, source_dir_, name):
-        """Remove an executable."""
-        # Find the executable in the metadata.
+    @cascade.argument('names', required=True, nargs=-1)
+    def remove_exe(self, source_dir_, names):
+        """Remove one or more executables."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        executables = confee.filter(metadata.executables[:], subject['name'] == name)
-        executables = list(executables)
-        # Exit if it is missing or ambiguous.
-        if len(executables) < 1:
-            raise SystemExit(f'unknown executable name: {name}')
-        if len(executables) > 1:
-            raise SystemExit(f'ambiguous executable name: {name}')
-        [proxy] = executables
-        confee.delete(proxy)
 
-        (source_dir_ / 'src' / f'{name}.cpp').unlink(missing_ok=True)
-        (source_dir_ / 'src' / f'{name}.c').unlink(missing_ok=True)
-        try:
-            shutil.rmtree(source_dir_ / 'src' / f'{name}')
-        except FileNotFoundError:
-            pass
+        for name in names:
+            # Find the executable in the metadata.
+            executables = confee.filter(metadata.executables[:], subject['name'] == name)
+            executables = list(executables)
+            # Exit if it is missing or ambiguous.
+            if len(executables) < 1:
+                raise SystemExit(f'unknown executable name: {name}')
+            if len(executables) > 1:
+                raise SystemExit(f'ambiguous executable name: {name}')
+            [proxy] = executables
+            confee.delete(proxy)
+
+            (source_dir_ / 'src' / f'{name}.cpp').unlink(missing_ok=True)
+            (source_dir_ / 'src' / f'{name}.c').unlink(missing_ok=True)
+            try:
+                shutil.rmtree(source_dir_ / 'src' / f'{name}')
+            except FileNotFoundError:
+                pass
 
         confee.write(metadata)
 
@@ -1466,7 +1473,6 @@ class Cupcake:
     def add_test(self, source_dir_, names):
         """Add one or more tests."""
         jenv = self.jenv_('data/new')
-
         tnames = ['tests/{{name}}.cpp']
         metadata = confee.read(source_dir_ / 'cupcake.json')
 
@@ -1480,58 +1486,61 @@ class Cupcake:
         confee.write(metadata)
 
     @cascade.command('remove:test')
-    @cascade.argument('name', required=True)
-    def remove_test(self, source_dir_, name):
-        """Remove a test."""
-        # Find the test in the metadata.
+    @cascade.argument('names', required=True, nargs=-1)
+    def remove_test(self, source_dir_, names):
+        """Remove one or more tests."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        tests = confee.filter(metadata.tests[:], subject['name'] == name)
-        tests = list(tests)
-        # Exit if it is missing or ambiguous.
-        if len(tests) < 1:
-            raise SystemExit(f'unknown test name: {name}')
-        if len(tests) > 1:
-            raise SystemExit(f'ambiguous test name: {name}')
-        [proxy] = tests
-        confee.delete(proxy)
 
-        (source_dir_ / 'tests' / f'{name}.cpp').unlink(missing_ok=True)
-        (source_dir_ / 'tests' / f'{name}.c').unlink(missing_ok=True)
-        try:
-            shutil.rmtree(source_dir_ / 'tests' / f'{name}')
-        except FileNotFoundError:
-            pass
+        for name in names:
+            # Find the test in the metadata.
+            tests = confee.filter(metadata.tests[:], subject['name'] == name)
+            tests = list(tests)
+            # Exit if it is missing or ambiguous.
+            if len(tests) < 1:
+                raise SystemExit(f'unknown test name: {name}')
+            if len(tests) > 1:
+                raise SystemExit(f'ambiguous test name: {name}')
+            [proxy] = tests
+            confee.delete(proxy)
+
+            (source_dir_ / 'tests' / f'{name}.cpp').unlink(missing_ok=True)
+            (source_dir_ / 'tests' / f'{name}.c').unlink(missing_ok=True)
+            try:
+                shutil.rmtree(source_dir_ / 'tests' / f'{name}')
+            except FileNotFoundError:
+                pass
 
         confee.write(metadata)
 
     @cascade.command('add:header')
-    @cascade.argument('qname', required=True)
-    def add_header(self, source_dir_, qname):
+    @cascade.argument('qnames', required=True, nargs=-1)
+    def add_header(self, source_dir_, qnames):
         """
-        Add a new header to an existing library.
+        Add one or more public headers to an existing library.
 
-        The argument should be a qualified name,
+        The arguments should be qualified names,
         e.g. "foo.bar.baz" for include/foo/bar/baz.hpp.
         """
-        namespaces = qname.split('.')
-        for name in namespaces:
-            assert_legal_name(name)
-        path = source_dir_.joinpath('include', *namespaces).with_suffix('.hpp')
-        if path.exists():
-            raise SystemExit(f'file already exists: {path}')
-        name = namespaces.pop()
-
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        if not any(l.name() == namespaces[0] for l in metadata.libraries[:]):
-            raise SystemExit(f'missing library: {namespaces[0]}')
+        for qname in qnames:
+            namespaces = qname.split('.')
+            for name in namespaces:
+                assert_legal_name(name)
+            path = source_dir_.joinpath('include', *namespaces).with_suffix('.hpp')
+            if path.exists():
+                raise SystemExit(f'file already exists: {path}')
+            name = namespaces.pop()
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        jenv = self.jenv_('data/new')
-        template = jenv.get_template('include/{{name}}/{{name}}.hpp')
-        path.write_text(template.render({
-            'namespaces': namespaces,
-            'name': name,
-        }))
+            if not any(l.name() == namespaces[0] for l in metadata.libraries[:]):
+                raise SystemExit(f'missing library: {namespaces[0]}')
+
+            path.parent.mkdir(parents=True, exist_ok=True)
+            jenv = self.jenv_('data/new')
+            template = jenv.get_template('include/{{name}}/{{name}}.hpp')
+            path.write_text(template.render({
+                'namespaces': namespaces,
+                'name': name,
+            }))
 
     @cascade.command()
     @cascade.argument('url', default='.')
