@@ -304,10 +304,11 @@ def to_indices(slice, length):
         yield start
         start += step
 
-def _path(self, suffix=''):
+def _path(self):
     if self.parent is None:
         return ''
-    return _path(self.parent, '.') + self.name + suffix
+    step = f'[{self.name}]' if (type(self.name) is int) else f'.{self.name}'
+    return _path(self.parent) + step
 
 def path(proxy):
     return _path(_SELVES[proxy])
@@ -333,7 +334,7 @@ def filter(proxies, pred):
             yield proxy
 
 def remove_if(proxies, pred):
-    for proxy in proxies:
-        # Is no default correct here?
-        if evaluate(pred, proxy()):
-            delete(proxy)
+    # Collect everything to remove before removing anything.
+    chosen = [proxy for proxy in proxies if evaluate(pred, proxy())]
+    for proxy in chosen:
+        delete(proxy)
