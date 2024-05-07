@@ -128,7 +128,7 @@ class JsonType:
     def read(self, file):
         return json.load(file)
     def write(self, file, value):
-        json.dump(value, file)
+        json.dump(value, file, indent=2)
     def root(self):
         return {}
     def object(self):
