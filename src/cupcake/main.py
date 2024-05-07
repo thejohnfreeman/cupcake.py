@@ -1462,19 +1462,21 @@ class Cupcake:
         confee.write(metadata)
 
     @cascade.command('add:test')
-    @cascade.argument('name', required=True)
-    def add_test(self, source_dir_, name):
-        """Add a test."""
+    @cascade.argument('names', required=True, nargs=-1)
+    def add_test(self, source_dir_, names):
+        """Add one or more tests."""
         jenv = self.jenv_('data/new')
 
         tnames = ['tests/{{name}}.cpp']
-        self.generate_(jenv, source_dir_, tnames, name, context={})
-
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        confee.add(
-            metadata.tests,
-            {'name': name, 'links': ['${PROJECT_NAME}.imports.test'] },
-        )
+
+        for name in names:
+            self.generate_(jenv, source_dir_, tnames, name, context={})
+            confee.add(
+                metadata.tests,
+                {'name': name, 'links': ['${PROJECT_NAME}.imports.test'] },
+            )
+
         confee.write(metadata)
 
     @cascade.command('remove:test')
