@@ -920,7 +920,7 @@ class Cupcake:
     # TODO: No way to pass arguments to default executable.
     @cascade.argument('arguments', nargs=-1)
     def exe(self, CMAKE, cmake_dir_, flavor_, cmake, executable, arguments):
-        """Execute an executable target."""
+        """Execute an executable."""
         target = 'execute'
         if executable is not None:
             target += '.' + executable
@@ -959,7 +959,7 @@ class Cupcake:
         cmake,
         regex,
     ):
-        """Test the selected flavor."""
+        """Execute tests."""
         confee.write(config_)
         template = confee.resolve(None, config_.scripts.test, TEST_TEMPLATE_)
         template = jinja2.Template(template)
@@ -1244,7 +1244,7 @@ class Cupcake:
     @cascade.argument('downstream', required=True)
     @cascade.argument('upstreams', required=True, nargs=-1)
     def link(self, source_dir_, downstream, upstreams):
-        """Link a downstream artifact to upstream libraries."""
+        """Link a downstream target to upstream libraries."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
         pname = metadata.project.name()
 
@@ -1294,7 +1294,7 @@ class Cupcake:
     @cascade.argument('downstream', required=True)
     @cascade.argument('upstreams', required=True, nargs=-1)
     def unlink(self, source_dir_, downstream, upstreams):
-        """Unlink a downstream artifact from upstream libraries."""
+        """Unlink a downstream target from upstream libraries."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
         pname = metadata.project.name()
 
