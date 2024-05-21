@@ -1152,54 +1152,55 @@ class Cupcake:
         '--group', '-g', metavar='GROUP', multiple=True, default=('main',),
         help='Requirement groups, e.g. "main" or "test".',
     )
-    @cascade.argument('query')
-    def add(self, CONAN, source_dir_, conanfile_path_, group, query):
-        """Add a requirement."""
+    @cascade.argument('queries', required=True, nargs=-1)
+    def add(self, CONAN, source_dir_, conanfile_path_, group, queries):
+        """Add one or more requirements."""
         # TODO: Support conanfile.txt.
         if conanfile_path_.name != 'conanfile.py':
             raise SystemExit('missing conanfile.py')
-
-        # Parse reference into name/version@user/channel
-        # with optional version, user, and channel.
-        match = re.match('([^/@]+)(?:/([^/@]+))?(?:@([^/@]+)/([^/@]+))?', query)
-        if not match:
-            raise SystemExit(f'not a reference pattern: "{query}"')
-        name, version, user, channel = match.groups()
-
-        if version is None:
-            subquery = f'{name}/*'
-            if user is not None:
-                subquery += f'@{user}/{channel}'
-            results = CONAN.search(subquery)
-            if len(results) < 1:
-                raise SystemExit('no matches found')
-            version = results[0].version
-
-        reference = f'{name}/{version}'
-        if user is not None:
-            reference += f'@{user}/{channel}'
-
-        # Find the CMake names.
-        names = CONAN.get_cmake_names(reference)
 
         # Find the cupcake.json.
         path = source_dir_ / 'cupcake.json'
         metadata = confee.read(path)
 
-        # Add or update the requirement.
-        def add_requirement(before):
-            if before is not None:
-                # TODO: Add --upgrade option.
-                raise SystemExit(f'{name} already in imports')
-            return {
-                'name': name,
-                'version': version,
-                'reference': reference,
-                'file': names['file'],
-                'targets': names['targets'],
-                'groups': group,
-            }
-        update_requirement(metadata, name, add_requirement)
+        for query in queries:
+            # Parse reference into name/version@user/channel
+            # with optional version, user, and channel.
+            match = re.match('([^/@]+)(?:/([^/@]+))?(?:@([^/@]+)/([^/@]+))?', query)
+            if not match:
+                raise SystemExit(f'not a reference pattern: "{query}"')
+            name, version, user, channel = match.groups()
+
+            if version is None:
+                subquery = f'{name}/*'
+                if user is not None:
+                    subquery += f'@{user}/{channel}'
+                results = CONAN.search(subquery)
+                if len(results) < 1:
+                    raise SystemExit('no matches found')
+                version = results[0].version
+
+            reference = f'{name}/{version}'
+            if user is not None:
+                reference += f'@{user}/{channel}'
+
+            # Find the CMake names.
+            names = CONAN.get_cmake_names(reference)
+
+            # Add or update the requirement.
+            def add_requirement(before):
+                if before is not None:
+                    # TODO: Add --upgrade option.
+                    raise SystemExit(f'{name} already in imports')
+                return {
+                    'name': name,
+                    'version': version,
+                    'reference': reference,
+                    'file': names['file'],
+                    'targets': names['targets'],
+                    'groups': group,
+                }
+            update_requirement(metadata, name, add_requirement)
 
         # Update cupcake.json.
         confee.write(metadata)
