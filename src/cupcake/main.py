@@ -107,6 +107,7 @@ def max_by(compare):
 # Configuration commands take a set of possible flavors.
 
 # Map from friendly Cupcake name to Conan/CMake name.
+# TODO: Unalias flavor names before saving in `config_`.
 FLAVORS = {
     'd': 'Debug',
     'debug': 'Debug',
@@ -917,12 +918,29 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('executable', required=False)
-    # TODO: No way to pass arguments to default executable.
     @cascade.argument('arguments', nargs=-1)
     def exe(self, CMAKE, cmake_dir_, flavor_, cmake, executable, arguments):
         """Execute an executable."""
         target = 'execute'
-        if executable is not None:
+        if executable is not None and executable != '.':
+            target += '.' + executable
+        command = [CMAKE, '--build', cmake_dir_, '--target', target]
+        if cmake.multiConfig():
+            command.extend(['--config', FLAVORS[flavor_]])
+        env = os.environ.copy()
+        escape = lambda arg: arg.replace(';', '\\;')
+        env['CUPCAKE_EXE_ARGUMENTS'] = ';'.join(map(escape, arguments))
+        run(command, env=env)
+
+    @cascade.command()
+    @cascade.argument('executable', required=False)
+    @cascade.argument('arguments', nargs=-1)
+    def debug(self, CMAKE, cmake_dir_, flavor_, cmake, executable, arguments):
+        """Debug an executable."""
+        if flavor_ != 'debug':
+            raise SystemExit('must select debug flavor')
+        target = 'debug'
+        if executable is not None and executable != '.':
             target += '.' + executable
         command = [CMAKE, '--build', cmake_dir_, '--target', target]
         if cmake.multiConfig():
