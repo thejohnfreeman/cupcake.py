@@ -14,6 +14,7 @@ import os
 import pathlib
 import psutil
 import re
+import semver
 import shlex
 import shutil
 import subprocess
@@ -1308,6 +1309,25 @@ class Cupcake:
                 raise SystemExit('already linked')
             confee.add(dproxy.links, link1)
 
+        confee.write(metadata)
+
+    @cascade.command('version')
+    @cascade.argument('version', required=False)
+    def version_(self, source_dir_, version):
+        """Print or change the package version."""
+        metadata = confee.read(source_dir_ / 'cupcake.json')
+        before = metadata.project.version()
+        if version is None:
+            return print(before)
+        if version in ('major', 'minor', 'patch'):
+            before = semver.Version.parse(before)
+            method = f'bump_{version}'
+            after = getattr(before, method)()
+            metadata.project.version = after
+        else:
+            # Assert that it can be parsed.
+            semver.Version.parse(version)
+            metadata.project.version = version
         confee.write(metadata)
 
     @cascade.command()
