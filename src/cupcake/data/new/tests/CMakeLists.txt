@@ -13,7 +13,7 @@ cupcake_add_test({{ name }} {{ name }}.cpp)
 target_link_libraries(${this} PUBLIC
   ${PROJECT_NAME}.imports.test
 {% if with_library %}
-  ${PROJECT_NAME}.lib{{ name }}
+  ${PROJECT_NAME}.l.{{ name }}
 {% endif %}
 )
 {% endif %}

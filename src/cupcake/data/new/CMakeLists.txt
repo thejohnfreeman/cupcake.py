@@ -33,7 +33,7 @@ cupcake_add_executables()
 {% else %}
 cupcake_add_executable({{ name }})
 {% if with_library %}
-target_link_libraries(${this} PRIVATE ${PROJECT_NAME}.lib{{ name }})
+target_link_libraries(${this} PRIVATE ${PROJECT_NAME}.l.{{ name }})
 {% else %}
 target_link_libraries(${this} PRIVATE ${PROJECT_NAME}.imports.main)
 {% endif %}

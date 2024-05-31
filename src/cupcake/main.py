@@ -1011,7 +1011,7 @@ class Cupcake:
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
     @cascade.option(
-        '--version', help='Version of requirement cupcake.cmake@github/thejohnfreeman.', default='1.0.3',
+        '--version', help='Version of requirement cupcake.cmake@github/thejohnfreeman.', default='1.1.0',
     )
     @cascade.option(
         '--special/--general', help='Whether to enable special commands.', default=True,
@@ -1113,7 +1113,7 @@ class Cupcake:
             if executable:
                 links = ['${PROJECT_NAME}.imports.main']
                 if library:
-                    links.append(f'{name}.lib{name}')
+                    links.append(f'{name}.library')
                 exe = {'name': name, 'links': links}
                 metadata.executables = [exe]
             if tests:
@@ -1129,7 +1129,7 @@ class Cupcake:
                 ]
                 links = ['${PROJECT_NAME}.imports.test']
                 if library:
-                    links.append(f'{name}.lib{name}')
+                    links.append(f'{name}.library')
                 test = {'name': name, 'links': links }
                 metadata.tests = [test]
             confee.write(metadata)
@@ -1246,14 +1246,9 @@ class Cupcake:
     def list(self, source_dir_):
         """List targets and their links."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
-        kinds = [
-            ('libraries', 'lib'),
-            ('executables', ''),
-            ('tests', 'test.'),
-        ]
-        for kind, prefix in kinds:
+        for kind in ('libraries', 'executables', 'tests'):
             for item in metadata[kind][:]:
-                line = f'{prefix}{item.name()}'
+                line = f'{kind}.{item.name()}'
                 links = item.links([])
                 if links:
                     line += ' -> ' + ', '.join(links)
