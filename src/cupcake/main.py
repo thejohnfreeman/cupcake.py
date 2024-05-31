@@ -1080,8 +1080,10 @@ class Cupcake:
             raise SystemExit('directory is not empty')
         if name is None:
             name = prefix.name
+        url = None if github is None else f'https://github.com/{github}/{name}'
 
         # TODO: Take default license and github from user config.
+        # TODO: Write LICENSE file from template.
         context = dict(
             version=version,
             special=special,
@@ -1091,6 +1093,7 @@ class Cupcake:
             license=license,
             author=author,
             github=github,
+            url=url,
         )
 
         tnames = [
@@ -1106,6 +1109,9 @@ class Cupcake:
         if special:
             metadata = confee.read(prefix / 'cupcake.json')
             metadata.project.name = name
+            metadata.project.version = '0.1.0'
+            if url is not None:
+                metadata.project.url = url
             if library:
                 metadata.libraries = [
                     {'name': name, 'links': ['${PROJECT_NAME}.imports.main'] }

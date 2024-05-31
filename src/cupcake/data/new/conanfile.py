@@ -1,22 +1,57 @@
 from conan import ConanFile, conan_version
 from conan.tools.cmake import CMake, cmake_layout
 
+{% if special %}
+from functools import cached_property
+import json
+import pathlib
+
+{% endif %}
 class {{ name | pascal }}(ConanFile):
-    name = '{{ name }}'
-    version = '0.1.0'
+
+    {% if special %}
+    @cached_property
+    def metadata(self):
+        path = pathlib.Path(self.recipe_folder) / 'cupcake.json'
+        with open(path, 'r') as file:
+            return json.load(file)
+
+    {% endif %}
+    def set_name(self):
+        if self.name is None:
+            {% if special %}
+            self.name = self.metadata['project']['name']
+            {% else %}
+            self.name = '{{ name }}'
+            {% endif %}
+
+    def set_version(self):
+        if self.version is None:
+            {% if special %}
+            self.version = self.metadata['project']['version']
+            {% else %}
+            self.version = '0.1.0'
+            {% endif %}
+
     {% if github %}
     user = 'github'
     channel = '{{ github }}'
-    {% endif %}
 
+    {% endif %}
     license = '{{ license }}'
     {% if author %}
     author = '{{ author }}'
+
     {% endif %}
-    {% if github %}
-    url = 'https://github.com/{{ github }}/{{ name }}'
+    {% if url %}
+    {% if special %}
+    def configure(self):
+        self.url = self.metadata['project']['url']
+    {% else %}
+    url = '{{ url }}'
     {% endif %}
 
+    {% endif %}
     settings = 'os', 'compiler', 'build_type', 'arch'
     options = {'shared': [True, False], 'fPIC': [True, False]}
     default_options = {'shared': False, 'fPIC': True}
