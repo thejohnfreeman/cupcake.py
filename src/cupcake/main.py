@@ -252,12 +252,17 @@ def update_requirement(metadata, name, f):
     requirements.sort(key=lambda item: item['name'])
     metadata.imports = requirements
 
-def expand(reference):
-    if reference.startswith('lib'):
-        return ('libraries', reference[len('lib'):])
-    if reference.startswith('test.'):
-        return ('tests', reference[len('test.'):])
-    return ('executables', reference)
+DEFAULT_TO_KIND = {
+    'library': 'libraries',
+    'executable': 'executables',
+}
+
+KIND_TO_DEFAULT = { v: k for k, v in DEFAULT_TO_KIND.items() }
+
+KIND_ALIASES = {
+    k: v for kind in ['libraries', 'executables', 'tests', 'imports']
+    for k, v in { kind: kind, kind[0]: kind }.items()
+}
 
 class SearchResult:
     """Representation for a Conan package search result."""
@@ -1255,7 +1260,7 @@ class Cupcake:
         metadata = confee.read(source_dir_ / 'cupcake.json')
         for kind in ('libraries', 'executables', 'tests'):
             for item in metadata[kind][:]:
-                line = f'{kind}.{item.name()}'
+                line = f'.{kind[0]}.{item.name()}'
                 links = item.links([])
                 if links:
                     line += ' -> ' + ', '.join(links)
@@ -1265,18 +1270,63 @@ class Cupcake:
     @cascade.argument('downstream', required=True)
     @cascade.argument('upstreams', required=True, nargs=-1)
     def link(self, source_dir_, downstream, upstreams):
-        """Link a downstream target to upstream libraries."""
+        """Link a target to one or more libraries."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
         pname = metadata.project.name()
 
-        def unprefix(reference):
-            for prefix in (pname + '.', '${PROJECT_NAME}.'):
-                if reference.startswith(prefix):
-                    return reference[len(prefix):]
-            return reference
+        # Linked internal targets _must_ be qualified by their project name,
+        # even if it is the default library or the libraries group.
+        # In other words, you cannot link to root project targets,
+        # e.g. `library` or `l.<name>` or `libraries`.
+        # Those targets are provided for convenience on the command-line.
+        #
+        # We cannot assume anything about the format of external targets,
+        # even though they typically contain double colon (`::`).
+        # We cannot assume any aliases for them.
+        #
+        # We _can_ assume that this project is a special Cupcake project.
+        # We _can_ assume that all upstream targets are libraries.
+        # Therefore, upstream internal targets will start with either
+        # `<project-name>.` or `${PROJECT_NAME}.`.
+        # For convenience, we let callers abbreviate the prefix to just `.`.
+        #
+        # Internal targets _may_ not be declared in the metadata.
+        # We cannot assume that they appear there.
+        # We _can_ assume their aliases and verify that
+        # they are not directly linked more than once by the same target.
+        #
+        # If a target has one of the three recognized project prefixes,
+        # then assume it is an internal Cupcake target
+        # and generate all of its known aliases.
+        # Otherwise, assume it is an external target and generate no aliases.
+        #
+        # The upstream target _must_ be an internal target,
+        # i.e. library or executable target with prefixed name,
+        # and it _must_ appear in the metadata.
+        # Resolve its target to its kind and name to find it in the metadata.
+
+        def unalias(target):
+            # Take the prefix up to the first dot (.).
+            # If it does not exist, or does not match a known prefix,
+            # then assume it is an external target and return nothing.
+            parts = target.split('.')
+            if parts[0] not in ('', pname, '${PROJECT_NAME}'):
+                return (None, None)
+            try:
+                if parts[1] in DEFAULT_TO_KIND:
+                    assert(len(parts) == 2)
+                    return (DEFAULT_TO_KIND[parts[1]], pname)
+                if parts[1] in KIND_ALIASES:
+                    assert(parts[2])
+                    return (KIND_ALIASES[parts[1]], parts[2])
+            except:
+                pass
+            raise SystemExit(f'malformed reference: {target}')
 
         def find(reference):
-            kind, name = expand(reference)
+            kind, name = unalias(reference)
+            if kind is None:
+                raise SystemExit(f'not an internal target: {reference}')
             items = confee.filter(metadata[kind][:], subject['name'] == name)
             items = list(items)
             if len(items) > 1:
@@ -1285,29 +1335,39 @@ class Cupcake:
                 raise SystemExit(f'unknown reference: {reference}')
             return items[0]
 
-        downstream = unprefix(downstream)
+        def expand(reference):
+            kind, name = unalias(reference)
+            if kind is None:
+                return [reference]
+            suffixes = [f'{kind}.{name}', f'{kind[0]}.{name}']
+            if name == pname:
+                suffixes += [KIND_TO_DEFAULT[kind]]
+            return [
+                prefix + '.' + suffix
+                for suffix in suffixes
+                for prefix in ['${PROJECT_NAME}', pname]
+            ]
+
+        # Find the downstream target in the metadata.
+        # It must be a special internal target.
         dproxy = find(downstream)
 
         for upstream in upstreams:
-            upstream = unprefix(upstream)
-            if upstream.startswith('lib'):
-                uproxy = find(upstream)
-                if uproxy == dproxy:
-                    raise SystemExit(f'cannot link to self')
-            elif not re.match(f'^imports.\\w+$', upstream):
-                raise SystemExit(f'upstream is not a library: {upstream}')
-
-            link1 = '${PROJECT_NAME}.' + upstream
-            link2 = pname + '.' + upstream
-
+            # TODO: Check for cycles, including through aliases.
+            aliases = expand(upstream)
             existing = confee.filter(dproxy.links[:], (
-                (subject == link1) | (subject == link2) |
-                (subject['target'] == link1) | (subject['target'] == link2)
+                contains(aliases, subject) |
+                contains(aliases, subject['target'])
             ))
             existing = list(existing)
+            # Skip duplicates.
+            if len(existing) > 1:
+                # Duplicate links were _already_ present.
+                raise SystemExit(f'duplicate links found: {existing}')
             if len(existing) > 0:
-                raise SystemExit('already linked')
-            confee.add(dproxy.links, link1)
+                # TODO: If verbose, print a warning.
+                continue
+            confee.add(dproxy.links, aliases[0])
 
         confee.write(metadata)
 
@@ -1334,18 +1394,32 @@ class Cupcake:
     @cascade.argument('downstream', required=True)
     @cascade.argument('upstreams', required=True, nargs=-1)
     def unlink(self, source_dir_, downstream, upstreams):
-        """Unlink a downstream target from upstream libraries."""
+        """Unlink a target from one or more libraries."""
         metadata = confee.read(source_dir_ / 'cupcake.json')
         pname = metadata.project.name()
 
-        def unprefix(reference):
-            for prefix in (pname + '.', '${PROJECT_NAME}.'):
-                if reference.startswith(prefix):
-                    return reference[len(prefix):]
-            return reference
+        def unalias(target):
+            # Take the prefix up to the first dot (.).
+            # If it does not exist, or does not match a known prefix,
+            # then assume it is an external target and return nothing.
+            parts = target.split('.')
+            if parts[0] not in ('', pname, '${PROJECT_NAME}'):
+                return (None, None)
+            try:
+                if parts[1] in DEFAULT_TO_KIND:
+                    assert(len(parts) == 2)
+                    return (DEFAULT_TO_KIND[parts[1]], pname)
+                if parts[1] in KIND_ALIASES:
+                    assert(parts[2])
+                    return (KIND_ALIASES[parts[1]], parts[2])
+            except:
+                pass
+            raise SystemExit(f'malformed reference: {target}')
 
         def find(reference):
-            kind, name = expand(reference)
+            kind, name = unalias(reference)
+            if kind is None:
+                raise SystemExit(f'not an internal target: {reference}')
             items = confee.filter(metadata[kind][:], subject['name'] == name)
             items = list(items)
             if len(items) > 1:
@@ -1354,21 +1428,28 @@ class Cupcake:
                 raise SystemExit(f'unknown reference: {reference}')
             return items[0]
 
-        downstream = unprefix(downstream)
+        def expand(reference):
+            kind, name = unalias(reference)
+            if kind is None:
+                return [reference]
+            suffixes = [f'{kind}.{name}', f'{kind[0]}.{name}']
+            if name == pname:
+                suffixes += [KIND_TO_DEFAULT[kind]]
+            return [
+                prefix + '.' + suffix
+                for suffix in suffixes
+                for prefix in [pname, '${PROJECT_NAME}']
+            ]
+
         dproxy = find(downstream)
 
         for upstream in upstreams:
-            upstream = unprefix(upstream)
-            # We don't need to check that upstream is a library.
-            # All we care is whether it appears in the links.
-
-            link1 = '${PROJECT_NAME}.' + upstream
-            link2 = pname + '.' + upstream
-
-            confee.remove_if(dproxy.links[:], (
-                (subject == link1) | (subject == link2) |
-                (subject['target'] == link1) | (subject['target'] == link2)
+            aliases = expand(upstream)
+            existing = confee.filter(dproxy.links[:], (
+                contains(aliases, subject) |
+                contains(aliases, subject['target'])
             ))
+            confee.remove(existing)
 
         confee.write(metadata)
 

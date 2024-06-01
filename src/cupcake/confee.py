@@ -334,8 +334,7 @@ def filter(proxies, pred):
         if evaluate(pred, proxy()):
             yield proxy
 
-def remove_if(proxies, pred):
-    # Collect everything to remove before removing anything.
-    chosen = [proxy for proxy in proxies if evaluate(pred, proxy())]
-    for proxy in chosen:
+def remove(proxies):
+    # Collect all proxies before deleting any.
+    for proxy in list(proxies):
         delete(proxy)
