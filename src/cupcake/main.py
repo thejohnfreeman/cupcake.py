@@ -1667,9 +1667,9 @@ class Cupcake:
 
     @cascade.command()
     @cascade.argument('url', default='.')
-    def export(self, CONAN, url):
+    def cache(self, CONAN, url):
         """
-        Copy a Conan package to your local cache.
+        Copy a package to your local cache.
 
         For this command, it is important to understand the idea of a "Conan
         package directory", which is a directory containing a `conanfile.py`
