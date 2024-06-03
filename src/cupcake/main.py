@@ -586,11 +586,13 @@ class Cupcake:
     )
     def flavor_(self, config_, flavor):
         flavor = confee.resolve(flavor, config_.selection, 'release')
+        confee.write(config_)
         return flavor
 
     @cascade.command()
     def select(self, flavor_):
         """Select a flavor."""
+        print(flavor_)
 
     @cascade.value()
     @cascade.option(
