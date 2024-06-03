@@ -1703,7 +1703,7 @@ class Cupcake:
     @cascade.command()
     @cascade.option('--remote', default='github')
     def publish(self, CONAN, source_dir, remote):
-        """Upload package to Conan remote."""
+        """Upload a package."""
         stream = io.BytesIO()
         tee([CONAN.command, 'export', source_dir], stream=stream)
         line = stream.getvalue().splitlines()[-1]
