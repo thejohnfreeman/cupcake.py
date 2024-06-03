@@ -588,16 +588,16 @@ class Cupcake:
     @cascade.value()
     def CONAN(self, config_):
         # TODO: Enable overrides from environment.
-        command = confee.resolve(None, config_.CONAN, 'conan')
+        command = confee.resolve(None, config_.path.conan, 'conan')
         return Conan.construct(command)
 
     @cascade.value()
     def CMAKE(self, config_):
-        return confee.resolve(None, config_.CMAKE, 'cmake')
+        return confee.resolve(None, config_.path.cmake, 'cmake')
 
     @cascade.value()
     def CTEST(self, config_):
-        return confee.resolve(None, config_.CTEST, 'ctest')
+        return confee.resolve(None, config_.path.ctest, 'ctest')
 
     @cascade.value()
     @cascade.option(
@@ -968,7 +968,8 @@ class Cupcake:
     @cascade.option('--verbose', '-v', count=True, help='Increment verbosity.')
     @cascade.option('--quiet', '-q', count=True, help='Decrement verbosity.')
     def verbosity_(self, config_, verbose, quiet):
-        verbosity = min(max(verbose - quiet, 0), 3)
+        base = config_.verbosity(0)
+        verbosity = min(max(base + verbose - quiet, 0), 3)
         return confee.resolve(verbosity, config_.verbosity, 0)
 
     @cascade.command()
