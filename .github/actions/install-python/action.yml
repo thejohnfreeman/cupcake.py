@@ -17,7 +17,7 @@ runs:
         echo "${HOME}/.local/bin" >> $GITHUB_PATH
     - name: install Conan
       shell: bash
-      run: pip install wheel 'conan~=${{ matrix.conan }}.0'
+      run: pipx install 'conan~=${{ matrix.conan }}.0'
     - name: configure Conan
       if: matrix.conan == 1
       shell: bash
