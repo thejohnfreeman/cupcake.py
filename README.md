@@ -6,7 +6,8 @@ Make C++ a piece of cake.
 
 Cupcake is an all-in-one build tool and package manager for C++,
 like [Cargo][] for Rust, [npm][] for JavaScript, or [Poetry][] for Python.
-It serves the complete package lifecycle:
+It serves the complete package lifecycle, all from the command line,
+with no manual editing of configuration files required:
 
 - Create a new project.
 - Search, add, or remove package dependencies.
@@ -159,26 +160,75 @@ and recreate it with exactly the same options just by running `cupcake build`.
 
 ### `.cupcake.toml`
 
-This section describes the common options, used by multiple commands,
+This section describes the common settings, used by multiple commands,
 that are persisted in the Cupcake configuration file.
-Other options that are persisted in the configuration file
+Other settings that are persisted in the configuration file
 but used by only a single command are documented under that command.
-The only two options that _cannot_ be persisted in the configuration file
+The only two settings that _cannot_ be persisted in the configuration file
 are the source directory and the configuration file path,
 but they are documented here anyways.
 
-| Options | Key | Type | Default
-|---|---|---|---
-| `--source-dir`, `-S` | | path | `.`
-| `--config` | | path | `.cupcake.toml`
-| `--build-dir`, `-B` | `.directory` | path | `".build"`
-| `--verbose`, `-v`, `--quiet`, `-q` | `.verbosity` | positive integer | `0`
-| `--flavor` | `.selection` | string | `"release"`
-| | `.flavors` | list of strings | `["release"]`
-| `--jobs`, `-j`, `--parallel` | `.jobs` | positive integer | number of logical processors
-| | `.path.conan` | path | `conan`
-| | `.path.cmake` | path | `cmake`
-| | `.path.ctest` | path | `ctest`
+The way settings work in Cupcake is unique, I think, but easy to explain.
+If you do not override a setting with a command-line option,
+then its default is taken from the configuration file.
+If it is missing in the configuration file too,
+then the default is hard-coded in Cupcake
+(and visible in the help string for the option).
+This way, if you're in the habit of repeating long command lines
+full of options for Conan and CMake,
+then you can do the same with Cupcake and expect the same behavior.
+But with Cupcake,
+once you've assigned a setting through a command-line option,
+then you can just repeat the command with no options
+and trust it will "do the same thing as last time".
+You can build a command incrementally
+and repeat it without searching through history.
+
+As a [TOML][] file, the configuration file represents an object.
+In the table below, the Key column defines the path in that object
+to the property for the setting.
+The Options column lists all the command-line options that affect the setting.
+Not all settings can be controlled by a command-line option.
+They must be manually edited in the configuration file instead.[^2]
+
+[^2]: In the future, I plan to add more command-line options for settings,
+and to enable overrides from environment variables.
+
+
+| Setting | Key | Options | Type | Default
+|---|---|---|---|---
+| **source directory** | | `--source-dir`, `-S` | path | `.`
+| **configuration file** | | `--config` | path | `.cupcake.toml`
+| **build directory** | `.directory` | `--build-dir`, `-B` | path | `".build"`
+| **verbosity level** | `.verbosity` | `--verbose`, `-v`, `--quiet`, `-q` | integer in range [0, 3] | `0`
+| **selected flavor** | `.selection` | `--flavor` | string | `"release"`
+| **enabled flavors** | `.flavors` | | list of strings | `["release"]`
+| **parallelism limit** | `.jobs` | `--jobs`, `-j`, `--parallel` | positive integer | number of logical processors
+| **Conan executable** | `.path.conan` | | path | `conan`
+| **CMake executable** | `.path.cmake` | | path | `cmake`
+| **CTest executable** | `.path.ctest` | | path | `ctest`
+
+If the configuration file or build directory are relative paths,
+then they are evaluated relative to the source directory.
+If the executables are relative paths,
+then they are evaluated like any other command,
+i.e. relative to the `PATH` environment variable.
+
+Verbosity is incremented by `--verbose`/`-v`
+and decremented by `--quiet`/`-q`, and clamped to the range [0, 3].
+
+Even though the level of parallelism does not affect
+the state of the build directory, it is persisted for a reason.
+Cupcake builds in parallel by default, unlike CMake.
+The default parallelism limit
+matches the number of logical processors detected by Cupcake.
+If your translation units are small, and your build is CPU-constrained,
+then this is typically the right choice.
+But if your translation units are large,
+and your build is memory-constrained instead,
+then this choice can lead to memory pressure and even crashing builds.
+The right choice for the limit depends on the machine _and_ the project,
+and thus it is persisted in a setting.
 
 
 ### `cupcake build`
@@ -267,5 +317,6 @@ but they are documented here anyways.
 [CMake]: https://cmake.org/cmake/help/latest/
 [Conan]: https://github.com/conan-io/conan
 [cupcake.cmake]: https://github.com/thejohnfreeman/cupcake.cmake
+[TOML]: https://toml.io/
 
 [1]: https://cmake.org/cmake/help/latest/manual/cmake-buildsystem.7.html#build-configurations
