@@ -168,7 +168,7 @@ are the source directory and the configuration file path,
 but they are documented here anyways.
 
 | Options | Key | Type | Default
-| ---|---|---|---|---
+|---|---|---|---
 | `--source-dir`, `-S` | | path | `.`
 | `--config` | | path | `.cupcake.toml`
 | `--build-dir`, `-B` | `.directory` | path | `".build"`
