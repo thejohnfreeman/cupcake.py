@@ -688,18 +688,6 @@ class Cupcake:
                 )
         state_.conan.id = id
         state_.conan.flavors = new_flavors
-        # TODO: Find layout. How?
-        toolchain = conan_dir / 'conan_toolchain.cmake'
-        if not toolchain.exists():
-            toolchain = conan_dir / 'build' / 'generators' / 'conan_toolchain.cmake'
-        if not toolchain.exists():
-            for flavor in ['Debug', 'Release']:
-                toolchain = conan_dir / 'build' / flavor / 'generators' / 'conan_toolchain.cmake'
-                if toolchain.exists():
-                    break
-        if not toolchain.exists():
-            raise Exception('cannot find toolchain file')
-        state_.conan.toolchain = str(toolchain)
         config_.flavors = new_flavors
         confee.write(config_)
         confee.write(state_)
@@ -845,7 +833,16 @@ class Cupcake:
         cmake_args['BUILD_SHARED_LIBS'] = 'ON' if shared else 'OFF'
         cmake_args['CMAKE_INSTALL_PREFIX'] = prefix_
         if conan is not None:
-            cmake_args['CMAKE_TOOLCHAIN_FILE:FILEPATH'] = conan.toolchain()
+            # TODO: Find layout. How?
+            conan_dir = build_dir_ / 'conan'
+            toolchain = conan_dir / 'conan_toolchain.cmake'
+            if not toolchain.exists():
+                toolchain = conan_dir / 'build' / 'generators' / 'conan_toolchain.cmake'
+            if not toolchain.exists():
+                toolchain = conan_dir / 'build' / FLAVORS[flavor_] / 'generators' / 'conan_toolchain.cmake'
+            if not toolchain.exists():
+                raise Exception('cannot find toolchain file')
+            cmake_args['CMAKE_TOOLCHAIN_FILE:FILEPATH'] = toolchain
         if tests is not None:
             cmake_args['BUILD_TESTING'] = 'ON' if tests else 'OFF'
         if prefixes:
