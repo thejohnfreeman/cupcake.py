@@ -936,7 +936,7 @@ class Cupcake:
         if cmake.multiConfig():
             command.extend(['--config', FLAVORS[flavor_]])
         env = os.environ.copy()
-        escape = lambda arg: '"' + arg.replace(';', '\\;') + '"'
+        escape = lambda arg: arg.replace(';', '\\;')
         env['CUPCAKE_EXE_ARGUMENTS'] = ';'.join(map(escape, arguments))
         run(command, env=env)
 
