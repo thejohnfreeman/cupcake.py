@@ -1382,7 +1382,7 @@ class Cupcake:
             before = semver.Version.parse(before)
             method = f'bump_{version}'
             after = getattr(before, method)()
-            metadata.project.version = after
+            metadata.project.version = str(after)
         else:
             # Assert that it can be parsed.
             semver.Version.parse(version)
