@@ -13,6 +13,8 @@ class {{ name | pascal }}(ConanFile):
     @cached_property
     def metadata(self):
         path = pathlib.Path(self.recipe_folder) / 'cupcake.json'
+        if not path.is_file():
+            path = path.parent.parent / 'export_source' / 'cupcake.json'
         with open(path, 'r') as file:
             return json.load(file)
 
@@ -85,16 +87,11 @@ class {{ name | pascal }}(ConanFile):
 
     {% if special %}
     def requirements(self):
-        import json
-        import pathlib
-        path = pathlib.Path(self.recipe_folder) / 'cupcake.json'
-        with path.open('r') as file:
-            metadata = json.load(file)
         methods = {
             'tool': 'tool_requires',
             'test': 'test_requires',
         } if conan_version.major.value == 2 else {}
-        for requirement in metadata.get('imports', []):
+        for requirement in self.metadata.get('imports', []):
             groups = requirement.get('groups', [])
             group = groups[0] if len(groups) == 1 else 'main'
             method = methods.get(group, 'requires')
