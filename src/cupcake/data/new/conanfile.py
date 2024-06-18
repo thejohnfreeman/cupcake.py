@@ -1,5 +1,8 @@
 from conan import ConanFile, conan_version
 from conan.tools.cmake import CMake, cmake_layout
+{% if special %}
+from conan.tools.files import copy
+{% endif %}
 
 {% if special %}
 from functools import cached_property
@@ -13,8 +16,6 @@ class {{ name | pascal }}(ConanFile):
     @cached_property
     def metadata(self):
         path = pathlib.Path(self.recipe_folder) / 'cupcake.json'
-        if not path.is_file():
-            path = path.parent.parent / 'export_source' / 'cupcake.json'
         with open(path, 'r') as file:
             return json.load(file)
 
@@ -78,6 +79,11 @@ class {{ name | pascal }}(ConanFile):
         'src/*',
     ]
 
+    {% if special %}
+    def export(self):
+        copy(self, 'cupcake.json', self.recipe_folder, self.export_folder)
+
+    {% endif %}
     # For out-of-source build.
     # https://docs.conan.io/en/latest/reference/build_helpers/cmake.html#configure
     no_copy_source = True
