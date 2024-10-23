@@ -119,11 +119,14 @@ class Subprocessor:
                 while True:
                     try:
                         line = next(rfile)
+                    # There seem to be several ways it can signal completion.
                     except OSError as error:
                         import errno
                         if error.errno == errno.EIO:
                             break
                         raise
+                    except StopIteration:
+                        break
                     if not line:
                         break
                     sys.stdout.buffer.write(line)
