@@ -80,21 +80,59 @@ def run(command, *args, **kwargs):
         raise SystemExit(proc.returncode)
     return proc
 
-def tee(command, *args, stream, **kwargs):
-    proc = subprocess.Popen(
-        command, *args,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
-    )
-    line = ' '.join(shlex.quote(str(arg)) for arg in command)
-    line += '\n'
-    line = line.encode()
-    stream.write(line)
-    sys.stdout.buffer.write(line)
-    for line in proc.stdout:
-        stream.write(line)
-        sys.stdout.buffer.write(line)
-    if proc.wait() != 0:
-        raise SystemExit(proc.returncode)
+def mkpty() -> (int, int):
+    """Returns pair of (read, write) file descriptors."""
+    try:
+        import pty
+        return pty.openpty()
+    except ModuleNotFoundError:
+        return os.pipe()
+
+# https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_(Control_Sequence_Introducer)_sequences
+_PATTERN_ANSI_CODE = re.compile(rb'(\x9B|\x1B\[)[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]')
+
+class Subprocessor:
+
+    def __init__(self, directory):
+        self.directory = directory
+
+    def run(self, name, command, *args, **kwargs):
+        """
+        Execute a subcommand, and:
+        - Echo a copy-pastable serialization of the command before starting it.
+        - Tee its output to a file, while preserving ANSI codes for stdout.
+        - Assert that it exits successfully.
+        """
+        with (self.directory / name).open('wb') as log:
+            (rfd, wfd) = mkpty()
+            with os.fdopen(wfd, 'wb') as wfile:
+                proc = subprocess.Popen(
+                    command, *args,
+                    stdout=wfile, stderr=subprocess.STDOUT, **kwargs
+                )
+            with os.fdopen(rfd, 'rb') as rfile:
+                line = ' '.join(shlex.quote(str(arg)) for arg in command) + '\n'
+                line = line.encode()
+                sys.stdout.buffer.write(line)
+                sys.stdout.flush()
+                log.write(line)
+                while True:
+                    try:
+                        line = next(rfile)
+                    except OSError as error:
+                        import errno
+                        if error.errno == errno.EIO:
+                            break
+                        raise
+                    if not line:
+                        break
+                    sys.stdout.buffer.write(line)
+                    sys.stdout.flush()
+                    # TODO: Create stream wrapper that removes ANSI codes.
+                    line = _PATTERN_ANSI_CODE.sub(b'', line)
+                    log.write(line)
+                if proc.wait() != 0:
+                    raise SystemExit(proc.returncode)
 
 def hash_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -433,8 +471,9 @@ _SINGLES = ('Unix Makefiles', 'Ninja')
 _MULTIS = ('Ninja Multi-Config', 'Xcode')
 
 class CMake:
-    def __init__(self, CMAKE):
+    def __init__(self, CMAKE, subprocessor):
         self.CMAKE = CMAKE
+        self.subprocess = subprocessor
 
     def is_multi_config(self, generator):
         """
@@ -484,7 +523,7 @@ class CMake:
             args = ['-G', generator, *args]
         args = [*args, source_dir]
         env = os.environ | env
-        run([self.CMAKE, *args], cwd=build_dir, env=env)
+        self.subprocess.run('cmake', [self.CMAKE, *args], cwd=build_dir, env=env)
 
 TEST_TEMPLATE_ = """
 '{{ ctest }}' --test-dir '{{ cmakeDir }}'
@@ -567,10 +606,10 @@ class Cupcake:
         return build_dir_path_
 
     @cascade.value()
-    def log_dir_(self, build_dir_) -> pathlib.Path:
-        log_dir_path_ = build_dir_ / 'logs'
-        log_dir_path_.mkdir(exist_ok=True)
-        return log_dir_path_
+    def subprocess_(self, build_dir_) -> pathlib.Path:
+        directory = build_dir_ / 'logs'
+        directory.mkdir(exist_ok=True)
+        return Subprocessor(directory)
 
     @cascade.value()
     def state_(self, build_dir_):
@@ -627,7 +666,7 @@ class Cupcake:
         source_dir_,
         conanfile_path_,
         build_dir_,
-        log_dir_,
+        subprocess_,
         config_,
         CONAN,
         state_,
@@ -680,12 +719,11 @@ class Cupcake:
         for name, value in copts.items():
             command.extend(['--options', f'{name}={value}'])
         for flavor in added_flavors:
-            with (log_dir_ / 'conan').open('wb') as stream:
-                tee(
-                    [*command, '--settings', f'build_type={FLAVORS[flavor]}'],
-                    stream=stream,
-                    cwd=conan_dir,
-                )
+            subprocess_.run(
+                'conan',
+                [*command, '--settings', f'build_type={FLAVORS[flavor]}'],
+                cwd=conan_dir,
+            )
         state_.conan.id = id
         state_.conan.flavors = new_flavors
         config_.flavors = new_flavors
@@ -739,6 +777,7 @@ class Cupcake:
         config_,
         CMAKE,
         build_dir_,
+        subprocess_,
         state_,
         flavor_,
         prefix_,
@@ -794,7 +833,7 @@ class Cupcake:
             state_.cmake.multiConfig()
             if state_.cmake.multiConfig
             and state_.cmake.generator(None) == generator else
-            CMake(CMAKE).is_multi_config(generator)
+            CMake(CMAKE, subprocess_).is_multi_config(generator)
         )
 
         # The config names the set of interesting flavors.
@@ -855,7 +894,7 @@ class Cupcake:
         # Add these last to let callers override anything.
         for name, value in cvars.items():
             cmake_args[name] = value
-        CMake(CMAKE).configure(
+        CMake(CMAKE, subprocess_).configure(
             cmake_dir, source_dir_, generator, cmake_args,
             env={'CMAKE_OUTPUT_DIR': str(build_dir_ / 'output')},
         )
@@ -898,7 +937,7 @@ class Cupcake:
         config_,
         CMAKE,
         build_dir_,
-        log_dir_,
+        subprocess_,
         cmake_dir_,
         flavor_,
         jobs_,
@@ -917,14 +956,13 @@ class Cupcake:
             command.extend(['--config', FLAVORS[flavor_]])
         if target is not None:
             command.extend(['--target', target])
-        with (log_dir_ / 'build').open('wb') as stream:
-            tee(command, stream=stream)
+        subprocess_.run('build', command)
         return cmake
 
     @cascade.command()
     @cascade.argument('executable', required=False)
     @cascade.argument('arguments', nargs=-1)
-    def exe(self, CMAKE, cmake_dir_, flavor_, cmake, executable, arguments):
+    def exe(self, CMAKE, subprocess_, cmake_dir_, flavor_, cmake, executable, arguments):
         """Execute an executable."""
         target = 'execute'
         if executable is not None and executable != '.':
@@ -935,7 +973,7 @@ class Cupcake:
         env = os.environ.copy()
         escape = lambda arg: arg.replace(';', '\\;')
         env['CUPCAKE_EXE_ARGUMENTS'] = ';'.join(map(escape, arguments))
-        run(command, env=env)
+        subprocess_.run('exe', command, env=env)
 
     @cascade.command()
     @cascade.argument('executable', required=False)
@@ -956,9 +994,9 @@ class Cupcake:
         run(command, env=env)
 
     @cascade.command()
-    def install(self, CMAKE, cmake_dir_, flavor_, build, prefix_):
+    def install(self, CMAKE, subprocess_, cmake_dir_, flavor_, build, prefix_):
         """Install the selected flavor."""
-        run([
+        command = [
             CMAKE,
             '--install',
             cmake_dir_,
@@ -966,7 +1004,8 @@ class Cupcake:
             FLAVORS[flavor_],
             '--prefix',
             prefix_,
-        ])
+        ]
+        subprocess_.run('install', command)
 
     @cascade.command()
     @cascade.argument('regex', required=False)
@@ -974,7 +1013,7 @@ class Cupcake:
         self,
         config_,
         CTEST,
-        log_dir_,
+        subprocess_,
         cmake_dir_,
         flavor_,
         jobs_,
@@ -998,8 +1037,7 @@ class Cupcake:
         command = shlex.split(template.render(**context))
         env = os.environ.copy()
         env['CTEST_OUTPUT_ON_FAILURE'] = 'ON'
-        with (log_dir_ / 'test').open('wb') as stream:
-            tee(command, stream=stream, env=env)
+        subprocess_.run('test', command, env=env)
 
     def jenv_(self, directory):
         loader = jinja2.PackageLoader('cupcake', directory)
