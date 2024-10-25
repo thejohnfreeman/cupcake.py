@@ -82,14 +82,13 @@ def run(command, *args, **kwargs):
 
 def mkpty() -> (int, int):
     """Returns pair of (read, write) file descriptors."""
-    try:
-        import pty
-        return pty.openpty()
-    except ModuleNotFoundError:
-        return os.pipe()
-
-# https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_(Control_Sequence_Introducer)_sequences
-_PATTERN_ANSI_CODE = re.compile(rb'(\x9B|\x1B\[)[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]')
+    if sys.stdout.isatty():
+        try:
+            import pty
+            return pty.openpty()
+        except ModuleNotFoundError:
+            pass
+    return os.pipe()
 
 class Subprocessor:
 
@@ -105,20 +104,23 @@ class Subprocessor:
         """
         with (self.directory / name).open('wb') as log:
             (rfd, wfd) = mkpty()
-            with os.fdopen(wfd, 'wb') as wfile:
+            with os.fdopen(wfd, 'wb', buffering=0) as wfile:
                 proc = subprocess.Popen(
                     command, *args,
                     stdout=wfile, stderr=subprocess.STDOUT, **kwargs
                 )
-            with os.fdopen(rfd, 'rb') as rfile:
-                line = ' '.join(shlex.quote(str(arg)) for arg in command) + '\n'
+            with os.fdopen(rfd, 'rb', buffering=0) as rfile:
+                line = ' '.join(shlex.quote(str(arg)) for arg in command)
                 line = line.encode()
+                line += _LINESEP
                 sys.stdout.buffer.write(line)
                 sys.stdout.flush()
                 log.write(line)
+                trailing_return = False
+                trailing_newline = True
                 while True:
                     try:
-                        line = next(rfile)
+                        chunk = rfile.read(1000)
                     # There seem to be several ways it can signal completion.
                     except OSError as error:
                         import errno
@@ -127,13 +129,30 @@ class Subprocessor:
                         raise
                     except StopIteration:
                         break
-                    if not line:
+                    if not chunk:
                         break
-                    sys.stdout.buffer.write(line)
+                    sys.stdout.buffer.write(chunk)
                     sys.stdout.flush()
                     # TODO: Create stream wrapper that removes ANSI codes.
-                    line = _PATTERN_ANSI_CODE.sub(b'', line)
-                    log.write(line)
+                    chunk = _PATTERN_ANSI_CODE.sub(b'', chunk)
+                    if not chunk:
+                        continue
+                    leading_return = trailing_return or chunk[0] == _CR
+                    trailing_return = chunk[-1] == _CR
+                    chunk = re.sub(_PATTERN_UNATTACHED_CR, b'\n', chunk)
+                    chunk = re.sub(_PATTERN_REMAINDER_CR, b'', chunk)
+                    if not chunk:
+                        continue
+                    leading_newline = trailing_newline or chunk[0] == _NL
+                    trailing_newline = chunk[-1] == _NL
+                    # At this point, we have some characters.
+                    if leading_return and not leading_newline:
+                        log.write(_LINESEP)
+                    if _LINESEP != b'\n':
+                        chunk = re.sub(b'\n', _LINESEP, chunk)
+                    log.write(chunk)
+                if not trailing_newline:
+                    log.write(_LINESEP)
                 if proc.wait() != 0:
                     raise SystemExit(proc.returncode)
 
@@ -1764,3 +1783,12 @@ def main():
         duration = time.time() - start # in seconds
         if duration > 1:
             print(hrd(duration))
+
+_LINESEP = os.linesep.encode()
+_CR = b'\r'[0]
+_NL = b'\n'[0]
+_PATTERN_UNATTACHED_CR = re.compile(b'[^\r\n]\r+[^\r\n]')
+_PATTERN_REMAINDER_CR = re.compile(b'\r+')
+# Put this at the end of the file because it confuses the formatter in Vim.
+# https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_(Control_Sequence_Introducer)_sequences
+_PATTERN_ANSI_CODE = re.compile(rb'(\x9B|\x1B\[)[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]')
