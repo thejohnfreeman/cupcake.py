@@ -105,21 +105,19 @@ def command(*args, **kwargs):
         return method
     return decorator
 
-def option(*args, **kwargs):
+def decorator(middle):
     def decorator(method):
         inner = getattr(method, 'cascade.parameters', fn.identity)
-        outer = fn.compose(click.option(*args, **kwargs), inner)
+        outer = fn.compose(middle, inner)
         setattr(method, 'cascade.parameters', outer)
         return method
     return decorator
 
+def option(*args, **kwargs):
+    return decorator(click.option(*args, **kwargs))
+
 def argument(*args, **kwargs):
-    def decorator(method):
-        inner = getattr(method, 'cascade.parameters', fn.identity)
-        outer = fn.compose(click.argument(*args, **kwargs), inner)
-        setattr(method, 'cascade.parameters', outer)
-        return method
-    return decorator
+    return decorator(click.argument(*args, **kwargs))
 
 def value():
     def decorator(method):

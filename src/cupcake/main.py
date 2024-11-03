@@ -1,5 +1,5 @@
 import click
-from click_option_group import optgroup
+from click_option_group import optgroup, MutuallyExclusiveOptionGroup
 from contextlib import contextmanager
 import functools
 import hashlib
@@ -127,13 +127,10 @@ class Subprocessor:
                         if error.errno == errno.EIO:
                             break
                         raise
-                    except StopIteration:
-                        break
                     if not chunk:
                         break
                     sys.stdout.buffer.write(chunk)
                     sys.stdout.flush()
-                    # TODO: Create stream wrapper that removes ANSI codes.
                     chunk = _PATTERN_ANSI_CODE.sub(b'', chunk)
                     if not chunk:
                         continue
@@ -168,7 +165,6 @@ def max_by(compare):
 # Configuration commands take a set of possible flavors.
 
 # Map from friendly Cupcake name to Conan/CMake name.
-# TODO: Unalias flavor names before saving in `config_`.
 FLAVORS = {
     'd': 'Debug',
     'debug': 'Debug',
@@ -176,6 +172,7 @@ FLAVORS = {
     'msr': 'MinSizeRel',
     'r': 'Release',
     'rd': 'RelWithDebInfo',
+    'rede': 'RelWithDebInfo',
     'release': 'Release',
     'relwithdebinfo': 'RelWithDebInfo',
     'rwdi': 'RelWithDebInfo',
@@ -638,15 +635,38 @@ class Cupcake:
         path = build_dir_ / 'cupcake.toml'
         return confee.read(path)
 
-    # TODO: Case-insensitive flavor name.
-    # TODO: Mutex options --release and --debug.
     @cascade.value()
-    @cascade.option(
-        '--flavor',
-        type=click.Choice(FLAVORS.keys()),
-    )
+    @cascade.decorator(optgroup.group(
+        'Flavor', cls=MutuallyExclusiveOptionGroup,
+        help='Name of CMake configuration.',
+    ))
+    @cascade.decorator(optgroup.option(
+        '--release', 'flavor', flag_value='release', show_default=False,
+        help='Enable all safe optimizations (Release).',
+    ))
+    @cascade.decorator(optgroup.option(
+        '--debug', 'flavor', flag_value='debug', show_default=False,
+        help='Disable all optimizations (Debug).',
+    ))
+    @cascade.decorator(optgroup.option(
+        '--rede', 'flavor', flag_value='rede', show_default=False,
+        help='Enable optimizations, but include debug symbols (RelWithDebInfo).',
+    ))
+    @cascade.decorator(optgroup.option(
+        '--size', 'flavor', flag_value='size', show_default=False,
+        help='Minimize binary size (MinSizeRel).',
+    ))
+    # The last one sets the default.
+    @cascade.decorator(optgroup.option(
+        '--flavor', metavar='NAME',
+        help='Choose a flavor by name.',
+    ))
     def flavor_(self, config_, flavor):
-        flavor = confee.resolve(flavor, config_.selection, 'release')
+        if flavor is not None:
+            # The translation from aliases must happen here.
+            # After this point, flavor names must be treated literally.
+            flavor = FLAVORS.get(flavor.lower(), flavor)
+        flavor = confee.resolve(flavor, config_.selection, 'Release')
         confee.write(config_)
         return flavor
 
@@ -683,6 +703,7 @@ class Cupcake:
         metavar='NAME[=VALUE]',
         multiple=True,
     )
+    # TODO: Accept parameter to override settings.
     def conan(
         self,
         source_dir_,
@@ -708,8 +729,6 @@ class Cupcake:
         adds = parse_options(options, 'True')
         copts = confee.merge(adds, [], config_.conan.options, {})
 
-        # TODO: Accept parameter to override settings.
-        # TODO: Find path to profile.
         profile_path = CONAN.find_profile(profile)
         m = hashlib.sha256()
         # TODO: Separate values with markers to disambiguate.
@@ -743,7 +762,7 @@ class Cupcake:
         for flavor in added_flavors:
             subprocess_.run(
                 'conan',
-                [*command, '--settings', f'build_type={FLAVORS[flavor]}'],
+                [*command, '--settings', f'build_type={flavor}'],
                 cwd=conan_dir,
             )
         state_.conan.id = id
@@ -900,7 +919,7 @@ class Cupcake:
             if not toolchain.exists():
                 toolchain = conan_dir / 'build' / 'generators' / 'conan_toolchain.cmake'
             if not toolchain.exists():
-                toolchain = conan_dir / 'build' / FLAVORS[flavor_] / 'generators' / 'conan_toolchain.cmake'
+                toolchain = conan_dir / 'build' / flavor_ / 'generators' / 'conan_toolchain.cmake'
             if not toolchain.exists():
                 raise Exception('cannot find toolchain file')
             cmake_args['CMAKE_TOOLCHAIN_FILE:FILEPATH'] = toolchain
@@ -909,10 +928,9 @@ class Cupcake:
         if prefixes:
             cmake_args['CMAKE_PREFIX_PATH'] = ';'.join(prefixes)
         if multiConfig:
-            flavors = [FLAVORS[f] for f in sflavors]
-            cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(flavors)
+            cmake_args['CMAKE_CONFIGURATION_TYPES'] = ';'.join(sflavors)
         else:
-            cmake_args['CMAKE_BUILD_TYPE'] = FLAVORS[flavor_]
+            cmake_args['CMAKE_BUILD_TYPE'] = flavor_
         # Add these last to let callers override anything.
         for name, value in cvars.items():
             cmake_args[name] = value
@@ -975,7 +993,7 @@ class Cupcake:
         if jobs_ > 1:
             command.extend(['--parallel', str(jobs_)])
         if cmake.multiConfig():
-            command.extend(['--config', FLAVORS[flavor_]])
+            command.extend(['--config', flavor_])
         if target is not None:
             command.extend(['--target', target])
         subprocess_.run('build', command)
@@ -991,7 +1009,7 @@ class Cupcake:
             target += '.' + executable
         command = [CMAKE, '--build', cmake_dir_, '--target', target]
         if cmake.multiConfig():
-            command.extend(['--config', FLAVORS[flavor_]])
+            command.extend(['--config', flavor_])
         env = os.environ.copy()
         escape = lambda arg: arg.replace(';', '\\;')
         env['CUPCAKE_EXE_ARGUMENTS'] = ';'.join(map(escape, arguments))
@@ -1002,14 +1020,14 @@ class Cupcake:
     @cascade.argument('arguments', nargs=-1)
     def debug(self, CMAKE, cmake_dir_, flavor_, cmake, executable, arguments):
         """Debug an executable."""
-        if flavor_ != 'debug':
+        if flavor_ != 'Debug':
             raise SystemExit('must select debug flavor')
         target = 'debug'
         if executable is not None and executable != '.':
             target += '.' + executable
         command = [CMAKE, '--build', cmake_dir_, '--target', target]
         if cmake.multiConfig():
-            command.extend(['--config', FLAVORS[flavor_]])
+            command.extend(['--config', flavor_])
         env = os.environ.copy()
         escape = lambda arg: '"' + arg.replace(';', '\\;') + '"'
         env['CUPCAKE_EXE_ARGUMENTS'] = ';'.join(map(escape, arguments))
@@ -1023,7 +1041,7 @@ class Cupcake:
             '--install',
             cmake_dir_,
             '--config',
-            FLAVORS[flavor_],
+            flavor_,
             '--prefix',
             prefix_,
         ]
@@ -1051,7 +1069,7 @@ class Cupcake:
             'ctest': CTEST,
             'cmakeDir': cmake_dir_,
             'multiConfig': cmake.multiConfig(),
-            'flavor': FLAVORS[flavor_],
+            'flavor': flavor_,
             'regex': regex,
             'jobs': jobs_,
             'verbosity': verbosity_,
@@ -1553,7 +1571,6 @@ class Cupcake:
             library = proxy()
             confee.delete(proxy)
 
-            # TODO: Remove its sources according to its section.
             (source_dir_ / 'include' / f'{name}.hpp').unlink(missing_ok=True)
             (source_dir_ / 'include' / f'{name}.h').unlink(missing_ok=True)
             try:
