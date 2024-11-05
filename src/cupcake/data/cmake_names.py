@@ -11,17 +11,49 @@ class CMakeNames(ConanFile):
         self.requires(str(self.options.requirement))
 
     def generate(self):
-        dep = self.dependencies[str(self.options.requirement)]
-        cmake_file_name = dep.cpp_info.get_property('cmake_file_name')
-        cmake_target_names = [dep.cpp_info.get_property('cmake_target_name')]
-        for _, component in dep.cpp_info.get_sorted_components().items():
-            cmake_target_names.append(component.get_property('cmake_target_name'))
-        cmake_target_names = [x for x in set(cmake_target_names) if x]
+        dependency = self.dependencies[str(self.options.requirement)]
+        info = dependency.cpp_info
+        name = dependency.ref.name
+
+        targets = []
+        defaults = []
+        def make_component(name, info):
+            component = { 'name': name }
+            target = info.get_property('cmake_target_name')
+            if target is None:
+                target = name
+            # All components should have unique targets,
+            # except that the root component might conflict.
+            if target in targets:
+                return None
+            component['target'] = target
+            targets.append(target)
+            if info.get_property('default_export'):
+                defaults.append(target)
+            aliases = info.get_property('cmake_target_aliases')
+            if aliases is not None:
+                component['aliases'] = aliases
+            return component
+
+        components = [
+            make_component(f'{name}::{subname}', subinfo)
+            for subname, subinfo in info.get_sorted_components().items()
+        ]
+        # The root component must come after
+        # reading all the component target names.
+        root = make_component(f'{name}::{name}', info)
+
+        output = {
+            'file': info.get_property('cmake_file_name'),
+            'targets': defaults or targets,
+        }
+        if root:
+            output['root'] = root
+        if components:
+            output['components'] = components
+
         path = pathlib.Path(self.generators_folder) / 'output.json'
         # Conan can and will print other things to stdout,
         # so best for us to just stream to an output file.
         with path.open('w') as out:
-            json.dump({
-                'file': cmake_file_name,
-                'targets': cmake_target_names,
-            }, out)
+            json.dump(output, out)

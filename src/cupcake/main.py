@@ -363,9 +363,7 @@ class Conan:
 
     def get_cmake_names(self, rref):
         conanfile = resources.as_file(
-            resources.files('cupcake')
-            .joinpath('data')
-            .joinpath('cmake_names.py')
+            resources.files('cupcake') / 'data' / 'cmake_names.py'
         )
         with conanfile as conanfile:
             with tempfile.TemporaryDirectory() as build_dir:
@@ -1303,9 +1301,8 @@ class Cupcake:
                     'name': name,
                     'version': version,
                     'reference': reference,
-                    'file': names['file'],
-                    'targets': names['targets'],
                     'groups': group,
+                    **names,
                 }
             update_requirement(metadata, name, add_requirement)
 
