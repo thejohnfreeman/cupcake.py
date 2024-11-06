@@ -28,6 +28,7 @@ from cupcake import cascade, confee, transformations
 from cupcake.expression import subject, contains
 
 _DEFAULT_JOBS = psutil.cpu_count()
+_DEFAULT_CUPCAKE_CMAKE_VERSION = '1.2.1'
 
 thresholds = [
     (60 * 60 * 24, 'day'),
@@ -1094,7 +1095,8 @@ class Cupcake:
     @cascade.command()
     @cascade.argument('path', required=False, default='.')
     @cascade.option(
-        '--version', help='Version of requirement cupcake.cmake@github/thejohnfreeman.', default='1.1.2',
+        '--version', help='Version of requirement cupcake.cmake@github/thejohnfreeman.',
+        default=_DEFAULT_CUPCAKE_CMAKE_VERSION,
     )
     @cascade.option(
         '--special/--general', help='Whether to enable special commands.', default=True,
