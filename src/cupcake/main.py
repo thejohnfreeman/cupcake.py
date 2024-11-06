@@ -368,9 +368,11 @@ class Conan:
         with conanfile as conanfile:
             with tempfile.TemporaryDirectory() as build_dir:
                 build_dir = pathlib.Path(build_dir)
+                profile = 'default'
                 run([
                     self.command, 'install',
                     '--build', 'missing',
+                    '--profile:build', profile, '--profile:host', profile,
                     '--output-folder', build_dir,
                     conanfile,
                     '--options', f'requirement={rref}',
