@@ -61,7 +61,7 @@ def hrd(d: float) -> str:
         if q1 > 1:
             u1 += 's'
         (d2, u2) =  thresholds[i+1]
-        q2, r2 = divmod(r1, d2)
+        q2, _ = divmod(r1, d2)
         if q2 > 1:
             u2 += 's'
         return f'{int(q1)} {u1}, {int(q2)} {u2}'
@@ -81,7 +81,7 @@ def run(command, *args, **kwargs):
         raise SystemExit(proc.returncode)
     return proc
 
-def mkpty() -> (int, int):
+def mkpty() -> tuple[int, int]:
     """Returns pair of (read, write) file descriptors."""
     if sys.stdout.isatty():
         try:
@@ -376,7 +376,7 @@ class Conan:
                     '--profile:build', profile, '--profile:host', profile,
                     '--output-folder', build_dir,
                     conanfile,
-                    '--options', f'requirement={rref}',
+                    '--options', f'&:requirement={rref}',
                 ], stdout=subprocess.DEVNULL, cwd=build_dir)
                 with (build_dir / 'output.json').open('r') as out:
                     names = json.load(out)

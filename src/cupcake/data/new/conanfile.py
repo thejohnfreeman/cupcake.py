@@ -59,13 +59,6 @@ class {{ name | pascal }}(ConanFile):
     options = {'shared': [True, False], 'fPIC': [True, False]}
     default_options = {'shared': False, 'fPIC': True}
 
-    requires = [
-        # Available at https://conan.jfreeman.dev
-        'cupcake.cmake/{{ version }}@github/thejohnfreeman',
-        {% if with_tests and not special %}
-        'doctest/2.4.8',
-        {% endif %}
-    ]
     generators = ['CMakeDeps', 'CMakeToolchain']
 
     exports_sources = [
@@ -91,8 +84,15 @@ class {{ name | pascal }}(ConanFile):
     def layout(self):
         cmake_layout(self)
 
-    {% if special %}
     def requirements(self):
+        # Available at https://conan.jfreeman.dev.
+        # Must pass `test=True` and `build=False`.
+        # https://github.com/conan-io/conan/issues/13036#issuecomment-2542553667
+        self.requires('cupcake.cmake/1.2.1@github/thejohnfreeman', test=True)
+        {% if with_tests and not special %}
+        self.requires('doctest/2.4.8', test=True)
+        {% endif %}
+        {% if special %}
         methods = {
             'tool': 'tool_requires',
             'test': 'test_requires',
@@ -102,8 +102,8 @@ class {{ name | pascal }}(ConanFile):
             group = groups[0] if len(groups) == 1 else 'main'
             method = methods.get(group, 'requires')
             getattr(self, method)(requirement['reference'])
+        {% endif %}
 
-    {% endif %}
     def config_options(self):
         if self.settings.os == 'Windows':
             del self.options.fPIC
