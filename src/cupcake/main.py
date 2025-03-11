@@ -404,12 +404,18 @@ class Conan:
     def find_profile(self, name) -> pathlib.Path:
         """Return path to named profile."""
 
+    def create_profile(self, name):
+        """Create a profile of the given name."""
+
 
 class Conan1(Conan):
     """Conan 1.x specialization."""
 
     def find_profile(self, name):
         return pathlib.Path.home() / '.conan/profiles' / name
+
+    def create_profile(self, name):
+        run([self.command, 'profile', 'new', name, '--detect'])
 
     def search_local(self, query):
         with tempfile.TemporaryDirectory() as tmp:
@@ -455,6 +461,9 @@ class Conan2(Conan):
             [self.command, 'profile', 'path', name]
         ).strip()
         return pathlib.Path(stdout.decode())
+
+    def create_profile(self, name):
+        run([self.command, 'profile', 'detect', '--name', name])
 
     def search_local(self, query):
         proc = run(
@@ -731,6 +740,8 @@ class Cupcake:
         copts = confee.merge(adds, [], config_.conan.options, {})
 
         profile_path = CONAN.find_profile(profile)
+        if profile == 'default' and not profile_path.exists():
+            CONAN.create_profile(profile)
         m = hashlib.sha256()
         # TODO: Separate values with markers to disambiguate.
         m.update(profile_path.read_bytes())
