@@ -33,6 +33,48 @@ If you find that you need an option that is missing from Cupcake,
 then you can always invoke Conan or CMake directly.
 
 
+## Quick start
+
+```
+# You will need to install Conan and CMake. Cupcake will not do this for you.
+pipx install conan cmake
+# You need to configure Conan yourself.
+conan profile detect # Default name is "default".
+${EDITOR} $(conan profile path default)
+# You'll need to add the Redirectory package server to get cupcake.cmake.
+conan remote add redirectory https://conan.jfreeman.dev
+# Now you're ready to use Cupcake.
+# Create a project named "example" in a subdirectory of that name.
+cupcake new example
+cd example
+# List known targets.
+cupcake list
+# The project will build and test out-of-the-box.
+cupcake build # Build a release flavor by default.
+cupcake test # Test the same flavor.
+# Search for the latest fmt, install it, and link it as a dependency.
+cupcake add fmt
+# Search for available versions of scnlib.
+cupcake search scn*
+# Install a specific version of scnlib and link it as a dependency.
+cupcake add scnlib@4.0.1
+# They are ready to use immediately.
+sed -i '1i #include <fmt/base.h>' src/example.cpp
+sed -i '1i #include <scn/scan.h>' src/example.cpp
+# Check the current flavor.
+cupcake select
+# Switch to and build the debug flavor.
+# Cupcake will build the dependencies in that flavor too.
+cupcake build --debug
+cupcake test # Tests the current flavor.
+# Switch back to the release flavor.
+cupcake select --release
+# Install into "./.install" by default.
+cupcake install
+tree .install/
+```
+
+
 ## Interface
 
 There are two dimensions on which to divide Cupcake commands.
