@@ -337,6 +337,9 @@ and thus it is persisted in a setting.
 ### `cupcake new`
 [:arrow_up:](#toc) :hash: [special](#interface), [source](#interface)
 
+To see the structure of a generated project, see the examples in
+[project-template-cpp][]. The README there explains the design too.
+
 ### `cupcake remove`
 [:arrow_up:](#toc) :hash: [special](#interface), [source](#interface)
 
@@ -363,5 +366,6 @@ and thus it is persisted in a setting.
 [Conan]: https://github.com/conan-io/conan
 [cupcake.cmake]: https://github.com/thejohnfreeman/cupcake.cmake
 [TOML]: https://toml.io/
+[project-template-cpp]: https://github.com/thejohnfreeman/project-template-cpp
 
 [1]: https://cmake.org/cmake/help/latest/manual/cmake-buildsystem.7.html#build-configurations
