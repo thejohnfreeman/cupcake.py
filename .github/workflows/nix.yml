@@ -31,13 +31,8 @@ jobs:
         run: |
           poetry install
       - name: export cupcake.cmake
-        if: matrix.conan == 1
         run: |
-          conan export submodules/project-template-cpp/cupcake cupcake.cmake/alpha@github/thejohnfreeman
-      - name: export cupcake.cmake
-        if: matrix.conan == 2
-        run: |
-          conan export submodules/project-template-cpp/cupcake --version alpha --user github --channel thejohnfreeman
+          conan export submodules/project-template-cpp/cupcake
       - name: test project
         run: |
           poetry run pytest tests --cov cupcake
